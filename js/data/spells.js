@@ -112,18 +112,26 @@ ATTRIBUTES.forEach(a => {
 // 적 데이터베이스
 const ENEMIES_DB = [
     // 초급 (1~2서클)
-    { id: "shadow_wolf",   name: "그림자 늑대",   tier: 1, intro: "크르르...! 공허의 눈이 당신을 향합니다.", atk: "날카로운 발톱이 공기를 가릅니다.", exp: 40,  gold: 15,  hp: 80,  maxHp: 80,  pwr: 7,  drop: 0.2 },
-    { id: "rot_goblin",    name: "부패한 고블린",  tier: 1, intro: "끼이익! 오염된 단검을 휘두릅니다.", atk: "독 묻은 단검이 당신을 노립니다.",   exp: 30,  gold: 10,  hp: 60,  maxHp: 60,  pwr: 5,  drop: 0.15 },
-    { id: "dark_slime",    name: "암흑 슬라임",    tier: 1, intro: "꿀렁꿀렁... 어둠의 덩어리가 달려듭니다.", atk: "끈적한 암흑 액체가 튀어오릅니다.", exp: 25, gold: 8,   hp: 50,  maxHp: 50,  pwr: 4,  drop: 0.1 },
+    { id: "shadow_wolf",    name: "그림자 늑대",   tier: 1, weak: ["불","번개"],        resist: ["어둠"],          intro: "크르르...! 공허의 눈이 당신을 향합니다.", atk: "날카로운 발톱이 공기를 가릅니다.", exp: 40,  gold: 15,  hp: 80,  maxHp: 80,  pwr: 7,  drop: 0.2 },
+    { id: "rot_goblin",     name: "부패한 고블린",  tier: 1, weak: ["불","바람"],        resist: ["독"],            intro: "끼이익! 오염된 단검을 휘두릅니다.", atk: "독 묻은 단검이 당신을 노립니다.",   exp: 30,  gold: 10,  hp: 60,  maxHp: 60,  pwr: 5,  drop: 0.15 },
+    { id: "dark_slime",     name: "암흑 슬라임",    tier: 1, weak: ["번개"],             resist: ["어둠","독"],     intro: "꿀렁꿀렁... 어둠의 덩어리가 달려듭니다.", atk: "끈적한 암흑 액체가 튀어오릅니다.", exp: 25, gold: 8,   hp: 50,  maxHp: 50,  pwr: 4,  drop: 0.1 },
     // 중급 (3~4서클)
-    { id: "corrupt_mage",  name: "타락한 마법병",  tier: 2, intro: "죽음을 각오해라! 오염된 마력이 넘칩니다.", atk: "오염된 마력탄을 연속으로 쏩니다.", exp: 90, gold: 40,  hp: 200, maxHp: 200, pwr: 14, drop: 0.3 },
-    { id: "stone_golem",   name: "석화 골렘",      tier: 2, intro: "쿵! 거대한 돌 발걸음이 대지를 흔듭니다.", atk: "바위 주먹이 폭풍처럼 내리꽂힙니다.", exp: 110, gold: 50, hp: 280, maxHp: 280, pwr: 18, drop: 0.25 },
-    { id: "fire_djinn",    name: "화염 정령",      tier: 2, intro: "불꽃이 당신을 감쌉니다. 힘을 증명해보아라!", atk: "불꽃의 소용돌이가 당신을 덮칩니다.", exp: 100, gold: 45, hp: 220, maxHp: 220, pwr: 16, drop: 0.28 },
+    { id: "corrupt_mage",   name: "타락한 마법병",  tier: 2, weak: ["중력","바람"],      resist: ["어둠"],          intro: "죽음을 각오해라! 오염된 마력이 넘칩니다.", atk: "오염된 마력탄을 연속으로 쏩니다.", exp: 90, gold: 40,  hp: 200, maxHp: 200, pwr: 14, drop: 0.3 },
+    { id: "stone_golem",    name: "석화 골렘",      tier: 2, weak: ["중력","번개"],      resist: ["바람","물"],     intro: "쿵! 거대한 돌 발걸음이 대지를 흔듭니다.", atk: "바위 주먹이 폭풍처럼 내리꽂힙니다.", exp: 110, gold: 50, hp: 280, maxHp: 280, pwr: 18, drop: 0.25 },
+    { id: "fire_djinn",     name: "화염 정령",      tier: 2, weak: ["물","중력"],        resist: ["불","번개"],     intro: "불꽃이 당신을 감쌉니다. 힘을 증명해보아라!", atk: "불꽃의 소용돌이가 당신을 덮칩니다.", exp: 100, gold: 45, hp: 220, maxHp: 220, pwr: 16, drop: 0.28 },
     // 고급 (5~6서클)
-    { id: "abyss_gargoyle", name: "심연의 가고일", tier: 3, intro: "영혼을 내놔라. 날개가 하늘을 가립니다.", atk: "심연의 발톱이 영혼을 할퀴어냅니다.", exp: 200, gold: 100, hp: 400, maxHp: 400, pwr: 25, drop: 0.4 },
-    { id: "lich_apostle",  name: "리치의 사도",    tier: 3, intro: "불사의 마력이 뼛속까지 파고드는 것을 느낍니다.", atk: "저주의 파동이 당신의 마나를 갉아먹습니다.", exp: 250, gold: 120, hp: 450, maxHp: 450, pwr: 28, drop: 0.45 },
-    // 보스
-    { id: "black_dragon",  name: "흑마룡 발투르",  tier: 4, intro: "...드디어 나의 잠을 깨우는 자가 왔구나. 죽음의 맛을 보여주마.", atk: "허공이 찢어지며 흑염이 쏟아집니다!", exp: 600, gold: 300, hp: 1200, maxHp: 1200, pwr: 50, drop: 0.8 }
+    { id: "abyss_gargoyle", name: "심연의 가고일",  tier: 3, weak: ["번개","바람"],     resist: ["어둠"],          intro: "영혼을 내놔라. 날개가 하늘을 가립니다.", atk: "심연의 발톱이 영혼을 할퀴어냅니다.", exp: 200, gold: 100, hp: 400, maxHp: 400, pwr: 25, drop: 0.4 },
+    { id: "lich_apostle",   name: "리치의 사도",    tier: 3, weak: ["불","바람"],        resist: ["독","어둠"],     intro: "불사의 마력이 뼛속까지 파고드는 것을 느낍니다.", atk: "저주의 파동이 당신의 마나를 갉아먹습니다.", exp: 250, gold: 120, hp: 450, maxHp: 450, pwr: 28, drop: 0.45 },
+    // 기존 보스
+    { id: "black_dragon",   name: "흑마룡 발투르",  tier: 4, weak: ["물","중력"],        resist: ["불","어둠","번개"], intro: "...드디어 나의 잠을 깨우는 자가 왔구나. 죽음의 맛을 보여주마.", atk: "허공이 찢어지며 흑염이 쏟아집니다!", exp: 600, gold: 300, hp: 1200, maxHp: 1200, pwr: 50, drop: 0.8 },
+    // 사냥터 구역 보스 (tier 5 — 일반 조우 불가, 각 사냥터의 10배 강도)
+    { id: "plain_boss",     name: "오염된 늑대왕 페이그",  tier: 5, weak: ["불","번개","바람"],    resist: ["어둠"],              intro: "크아아! 대지가 울부짖습니다. 오염된 기운이 넘쳐흐르는 거대한 늑대가 눈앞에 섭니다.", atk: "독기를 머금은 발톱이 대지를 가릅니다!", exp: 800, gold: 400, hp: 600, maxHp: 600, pwr: 50, drop: 0.9 },
+    { id: "gate_boss",      name: "경비대장 카론",         tier: 5, weak: ["중력","물","바람"],    resist: ["어둠","불"],         intro: "통행 불가. 이 길을 지나려면 내 허락이 필요하지. 허락은 없다.", atk: "강철 방패로 대지를 찍어내며 충격파가 퍼집니다!", exp: 1400, gold: 700, hp: 1400, maxHp: 1400, pwr: 100, drop: 0.9 },
+    { id: "floor1_boss",    name: "석마 거인 듀랄",        tier: 5, weak: ["중력","번개","물"],    resist: ["바람","불"],         intro: "우르르르… 미궁의 벽이 흔들립니다. 거대한 석조 거인이 눈을 뜹니다.", atk: "바위 주먹이 하늘에서 내리꽂힙니다!", exp: 2200, gold: 1100, hp: 2200, maxHp: 2200, pwr: 150, drop: 0.9 },
+    { id: "floor2_boss",    name: "함정술사 레빈",         tier: 5, weak: ["바람","물","독"],      resist: ["불","어둠"],         intro: "후후, 여기까지 왔군요. 하지만 진짜 미궁은 지금부터입니다.", atk: "독가스가 가득 찬 함정이 일제히 폭발합니다!", exp: 3000, gold: 1500, hp: 3000, maxHp: 3000, pwr: 200, drop: 0.9 },
+    { id: "floor3_boss",    name: "대리치 말케르",         tier: 5, weak: ["불","바람","중력"],    resist: ["독","어둠","물"],    intro: "죽음을 초월한 자여... 나는 이미 세 번 죽었다. 네 번째를 가르쳐주마.", atk: "해골 군단이 파도처럼 밀려오며 저주의 기운이 덮칩니다!", exp: 4000, gold: 2000, hp: 4000, maxHp: 4000, pwr: 250, drop: 0.95 },
+    { id: "dungeon_boss",   name: "수용소장 자칼",         tier: 5, weak: ["번개","불","바람"],    resist: ["어둠","독"],         intro: "이 수용소에서 살아 나간 자는 없다. 오늘도 마찬가지겠지.", atk: "전기 채찍이 허공을 가르며 마나를 빼앗습니다!", exp: 5500, gold: 2750, hp: 5500, maxHp: 5500, pwr: 300, drop: 0.95 },
+    { id: "top_boss",       name: "탑 수호자 이오나",      tier: 5, weak: ["물","어둠","중력"],    resist: ["번개","불"],         intro: "탑의 정상은 나만이 지킬 수 있다. 여기서 끝내주겠어.", atk: "시공간이 뒤틀리며 중력 특이점이 당신을 끌어당깁니다!", exp: 7000, gold: 3500, hp: 7000, maxHp: 7000, pwr: 380, drop: 1.0 }
 ];
 
 // NPC 데이터베이스 (12종)
@@ -556,7 +564,7 @@ const DUNGEON_STAGES = [
         name: "흑마법사의 탑 인근 평원",
         desc: "탑으로 향하는 광활한 초원. 오염된 야생 몬스터들이 서식하고 있습니다.",
         minCircle: 1, staminaCost: 15,
-        enemyTiers: [1],
+        enemyTiers: [1], bossId: "plain_boss",
         clearLog: "인근 평원을 제압했습니다. 이제 탑의 입구가 가까워졌습니다.",
         hiddenPiece: {
             id: "hp_plain_flower", name: "평원의 불꽃 들꽃", slot: "소비", rarity: "유니크",
@@ -569,7 +577,7 @@ const DUNGEON_STAGES = [
         name: "흑마법사의 탑 인근",
         desc: "탑의 외벽이 보이는 지역. 탑을 수호하는 강화된 경비대가 배치되어 있습니다.",
         minCircle: 2, staminaCost: 20,
-        enemyTiers: [1, 2],
+        enemyTiers: [1, 2], bossId: "gate_boss",
         clearLog: "탑의 경비를 돌파했습니다. 내성 입구가 열렸습니다.",
         hiddenPiece: {
             id: "hp_gate_shard", name: "흑마법사의 봉인 파편", slot: "소비", rarity: "유니크",
@@ -582,7 +590,7 @@ const DUNGEON_STAGES = [
         name: "흑마법사의 탑 내성 1층",
         desc: "탑 내부 1층. 흑마법에 의해 변형된 골렘과 언데드가 경비를 서고 있습니다.",
         minCircle: 3, staminaCost: 25,
-        enemyTiers: [2],
+        enemyTiers: [2], bossId: "floor1_boss",
         clearLog: "1층을 제압했습니다. 위층으로 올라가는 계단이 보입니다.",
         hiddenPiece: {
             id: "hp_floor1_crystal", name: "봉인된 마법 결정", slot: "무기", rarity: "유니크",
@@ -595,7 +603,7 @@ const DUNGEON_STAGES = [
         name: "흑마법사의 탑 내성 2층",
         desc: "탑 내부 2층. 마법 함정이 복도 곳곳에 설치되어 있으며, 강한 마법사형 몬스터가 등장합니다.",
         minCircle: 4, staminaCost: 30,
-        enemyTiers: [2, 3],
+        enemyTiers: [2, 3], bossId: "floor2_boss",
         clearLog: "2층을 돌파했습니다. 공중에 부유하는 마법진이 빛납니다.",
         hiddenPiece: {
             id: "hp_floor2_armor", name: "흑마법사의 갑주 조각", slot: "방어구", rarity: "유니크",
@@ -608,7 +616,7 @@ const DUNGEON_STAGES = [
         name: "흑마법사의 탑 내성 3층",
         desc: "탑 내부 3층. 리치의 사도들이 의식을 치르고 있습니다. 흑마법의 기운이 극도로 짙습니다.",
         minCircle: 5, staminaCost: 35,
-        enemyTiers: [3],
+        enemyTiers: [3], bossId: "floor3_boss",
         clearLog: "3층의 의식을 저지했습니다. 저 아래 수용소로 이어지는 문이 보입니다.",
         hiddenPiece: {
             id: "hp_floor3_notebook", name: "흑마법 연구 노트", slot: "소비", rarity: "유니크",
@@ -621,7 +629,7 @@ const DUNGEON_STAGES = [
         name: "흑마법사의 탑 지하 수용소",
         desc: "탑 지하의 수용소. 수많은 영혼이 갇혀 있으며, 심연에서 소환된 괴물들이 득실거립니다.",
         minCircle: 6, staminaCost: 40,
-        enemyTiers: [3, 4],
+        enemyTiers: [3, 4], bossId: "dungeon_boss",
         clearLog: "지하 수용소를 해방시켰습니다. 갇혀 있던 영혼들이 당신에게 감사를 표합니다.",
         hiddenPiece: {
             id: "hp_dungeon_letter", name: "탈옥수의 유언장", slot: "소비", rarity: "유니크",
@@ -634,7 +642,7 @@ const DUNGEON_STAGES = [
         name: "흑마법사의 탑 정상부",
         desc: "탑의 꼭대기. 구름 위에 솟아오른 이곳에서 흑마룡의 기운이 직접 느껴집니다. 공기 자체가 다릅니다.",
         minCircle: 7, staminaCost: 45,
-        enemyTiers: [4],
+        enemyTiers: [4], bossId: "top_boss",
         clearLog: "정상부를 돌파했습니다. 저 너머, 흑마법사의 정원이 보입니다.",
         hiddenPiece: {
             id: "hp_top_fragment", name: "흑마법사의 지팡이 끝", slot: "무기", rarity: "신화",
@@ -658,6 +666,153 @@ const DUNGEON_STAGES = [
     }
 ];
 
+// ──────────────────────────────────────────────────
+// 마법 합성 레시피 (7종 — 각 속성 정확히 2회)
+// ──────────────────────────────────────────────────
+const SYNTHESIS_RECIPES = [
+    {
+        id: "syn_firestorm",    name: "화염폭풍",
+        attrs: ["불", "바람"],
+        power: 280, manaCost: 35,
+        desc: "불꽃과 회오리가 합쳐진 광역 대폭발. 화상+출혈 동시 부여.",
+        effects: ["burn", "bleed"]
+    },
+    {
+        id: "syn_plasma",       name: "플라즈마 폭발",
+        attrs: ["불", "번개"],
+        power: 260, manaCost: 38,
+        desc: "화염과 전격이 융합해 초고온 플라즈마를 방출. 화상+감전 동시 부여.",
+        effects: ["burn", "stun"]
+    },
+    {
+        id: "syn_thunder_rain", name: "뇌전 폭우",
+        attrs: ["번개", "물"],
+        power: 240, manaCost: 34,
+        desc: "전격이 빗속에서 연쇄 반응한다. 감전+빙결 동시 부여.",
+        effects: ["stun", "freeze"]
+    },
+    {
+        id: "syn_frozen_fear",  name: "공포의 한기",
+        attrs: ["물", "어둠"],
+        power: 220, manaCost: 32,
+        desc: "냉기와 어둠이 혼을 얼어붙게 한다. 빙결+공포 동시 부여.",
+        effects: ["freeze", "fear"]
+    },
+    {
+        id: "syn_void_collapse", name: "공허 붕괴",
+        attrs: ["어둠", "중력"],
+        power: 380, manaCost: 50,
+        desc: "어둠과 중력이 공간을 붕괴시킨다. 막대한 피해와 압쇄 부여.",
+        effects: ["crush"]
+    },
+    {
+        id: "syn_toxic_crush",  name: "독성 압쇄",
+        attrs: ["중력", "독"],
+        power: 230, manaCost: 36,
+        desc: "중력으로 짓누르며 독을 주입한다. 압쇄+맹독 동시 부여.",
+        effects: ["crush", "poison"]
+    },
+    {
+        id: "syn_poison_wind",  name: "독풍",
+        attrs: ["독", "바람"],
+        power: 200, manaCost: 30,
+        desc: "독이 바람에 실려 사방으로 퍼진다. 맹독+출혈 동시 부여.",
+        effects: ["poison", "bleed"]
+    },
+];
+
+// ──────────────────────────────────────────────────
+// 분기 탐험 이벤트 (TRPG 자유도 — 8종)
+// ──────────────────────────────────────────────────
+const BRANCH_EVENTS = [
+    {
+        id: "be_hidden_door", title: "숨겨진 문",
+        desc: "벽 틈에서 미세한 마력이 새어나옵니다. 숨겨진 문인 것 같습니다. 어떻게 할까요?",
+        choices: [
+            { label: "강제로 열다",                  type: "risky_loot",    desc: "위험하지만 보상이 클 수 있다.", successRate: 0.55 },
+            { label: "마법으로 분석하다 (MP-15)",    type: "safe_loot",     desc: "안전하게 열 수 있다.",          cost: { mana: 15 } },
+            { label: "그냥 지나친다",                type: "pass" }
+        ]
+    },
+    {
+        id: "be_wounded_enemy", title: "부상당한 마물",
+        desc: "심하게 다친 마물이 구석에 웅크려 있습니다. 당신을 위협하지 않습니다.",
+        choices: [
+            { label: "끝내준다",             type: "kill_wounded",  desc: "빠르게 처치한다.",           expGain: 50, goldGain: 20, karma: -10 },
+            { label: "내버려둔다",           type: "pass",          desc: "무시하고 지나간다." },
+            { label: "치료해준다 (HP-10)",   type: "heal_enemy",    desc: "나중에 보답할지 모른다.",    cost: { hp: 10 }, expGain: 80, karma: 15 }
+        ]
+    },
+    {
+        id: "be_ancient_altar", title: "고대 제단",
+        desc: "불길한 문양이 새겨진 고대 제단이 있습니다. 무언가를 바치면 힘을 줄 것 같습니다.",
+        choices: [
+            { label: "피를 바친다 (HP-20)",          type: "blood_offer", desc: "강력하지만 대가가 크다.", cost: { hp: 20 }, expGain: 300, karma: -15 },
+            { label: "금화를 바친다 (Gold-60)",      type: "gold_offer",  desc: "금화로 은총을 구한다.",  cost: { gold: 60 }, rpGain: 30, manaGain: 30 },
+            { label: "외면한다",                     type: "pass",        desc: "불길한 것은 건드리지 않는다." }
+        ]
+    },
+    {
+        id: "be_fork_road", title: "갈림길",
+        desc: "탑 내부에서 갈림길을 만났습니다. 오른쪽엔 빛이, 왼쪽엔 어둠이 느껴집니다.",
+        choices: [
+            { label: "빛이 있는 오른쪽으로",  type: "safe_path",  desc: "안전하지만 보상이 적다.",      expGain: 50,  goldGain: 30 },
+            { label: "어둠이 있는 왼쪽으로",  type: "risky_path", desc: "위험하지만 강한 보상.",         successRate: 0.5, expGain: 200, goldGain: 100 },
+            { label: "되돌아간다",             type: "pass" }
+        ]
+    },
+    {
+        id: "be_trapped_mage", title: "갇힌 마법사",
+        desc: "유리 관 안에 젊은 마법사가 갇혀 있습니다. 아직 의식이 있는 것 같습니다.",
+        choices: [
+            { label: "해방시킨다 (ST-10)",    type: "rescue",     desc: "관을 파괴해 구출한다.", cost: { stamina: 10 }, expGain: 150, rpGain: 20, karma: 20 },
+            { label: "무시한다",              type: "pass",                                         karma: -5 },
+            { label: "마력만 흡수한다",       type: "drain_mage", desc: "비윤리적이지만 마나를 얻는다.", manaGain: 50, karma: -20 }
+        ]
+    },
+    {
+        id: "be_magic_trap", title: "마법 함정",
+        desc: "앞에 마법 함정이 보입니다. 멈추면 다른 마물이 올 수도 있습니다.",
+        choices: [
+            { label: "해제한다 (연구P-10)",          type: "disarm_trap",   desc: "함정을 안전하게 해제한다.", cost: { rp: 10 }, expGain: 60 },
+            { label: "방어막 치고 통과 (MP-20)",     type: "barrier_pass",  desc: "피해를 줄이며 통과한다.",   cost: { mana: 20 }, hpLoss: [5, 15] },
+            { label: "전력으로 달린다",              type: "dash_through",  desc: "절반 확률로 피격.",          successRate: 0.5, hpLoss: [10, 30] }
+        ]
+    },
+    {
+        id: "be_suspicious_herb", title: "수상한 약초",
+        desc: "기묘하게 빛나는 약초가 있습니다. 독초일 수도, 특효약일 수도 있습니다.",
+        choices: [
+            { label: "먹어본다",      type: "eat_herb",  desc: "운에 맡긴다.", successRate: 0.6, hpGain: 40, manaGain: 20, hpFailLoss: 20 },
+            { label: "가방에 넣는다", type: "take_herb", desc: "일단 가져간다." },
+            { label: "그냥 두고 간다",type: "pass" }
+        ]
+    },
+    {
+        id: "be_fallen_knight", title: "쓰러진 기사",
+        desc: "왕국 기사단 문양의 갑옷을 입은 인물이 쓰러져 있습니다. 아직 살아 있습니다.",
+        choices: [
+            { label: "치료해준다",         type: "heal_knight",    desc: "마법으로 응급처치한다.", expGain: 100, karma: 20 },
+            { label: "무기를 빌린다",      type: "borrow_weapon",  desc: "기사의 무기를 잠시 사용한다." },
+            { label: "지나친다",           type: "pass",            karma: -5 }
+        ]
+    },
+];
+
+// 일일 의뢰 템플릿
+const QUEST_TEMPLATES = [
+    { id: "q_kill_3",     type: "kill",      goal: 3,   title: "몬스터 사냥 I",    desc: "몬스터를 3마리 처치하라.",          reward: { exp: 80,  gold: 50 } },
+    { id: "q_kill_6",     type: "kill",      goal: 6,   title: "몬스터 사냥 II",   desc: "몬스터를 6마리 처치하라.",          reward: { exp: 180, gold: 80 } },
+    { id: "q_research_3", type: "research",  goal: 3,   title: "마법 탐구",         desc: "연구실에서 연구를 3회 수행하라.",   reward: { exp: 100, rp: 20 } },
+    { id: "q_explore_2",  type: "explore",   goal: 2,   title: "마을 탐색",         desc: "마을을 2회 탐색하라.",              reward: { gold: 100, rp: 10 } },
+    { id: "q_spell_6",    type: "spell",     goal: 6,   title: "마법 수련",         desc: "전투에서 마법을 6회 사용하라.",     reward: { exp: 150, rp: 15 } },
+    { id: "q_dungeon_4",  type: "dungeon",   goal: 4,   title: "탑 탐험",           desc: "탑 탐험에서 전투를 4회 하라.",      reward: { exp: 200, gold: 100 } },
+    { id: "q_gold_100",   type: "earn_gold", goal: 100, title: "돈을 모아라",        desc: "전투/탐색으로 Gold 100G를 획득하라.", reward: { exp: 120, rp: 20 } },
+    { id: "q_npc_1",      type: "npc",       goal: 1,   title: "사람 만나기",        desc: "NPC를 1명 만나라.",                 reward: { gold: 80, rp: 15 } },
+    { id: "q_kill_10",    type: "kill",      goal: 10,  title: "몬스터 사냥 III",  desc: "몬스터를 10마리 처치하라.",         reward: { exp: 350, gold: 150 } },
+    { id: "q_research_5", type: "research",  goal: 5,   title: "심화 연구",         desc: "연구를 5회 수행하라.",              reward: { exp: 200, rp: 40 } },
+];
+
 // 글로벌 노출
 window.ATTRIBUTES = ATTRIBUTES;
 window.SPELLS_DB = SPELLS_DB;
@@ -670,3 +825,6 @@ window.RARITY_STYLE = RARITY_STYLE;
 window.EDMOND_EVENTS = EDMOND_EVENTS;
 window.FORTUNE_EVENTS = FORTUNE_EVENTS;
 window.DUNGEON_STAGES = DUNGEON_STAGES;
+window.QUEST_TEMPLATES = QUEST_TEMPLATES;
+window.SYNTHESIS_RECIPES = SYNTHESIS_RECIPES;
+window.BRANCH_EVENTS = BRANCH_EVENTS;

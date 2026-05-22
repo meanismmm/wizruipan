@@ -200,40 +200,39 @@ function buildTownScene(panel) {
 }
 
 function doTownExplore() {
-    // EXP 대신 다양한 랜덤 보상
-    const roll = Math.random();
-    if (roll < 0.30) {
-        // 골드 획득
+    // d20 마을 탐색 결과표
+    const { roll, crit, fumble } = d20Check(1); // DC 1 = 항상 굴림, 결과는 roll 값으로 분기
+    addLog("탐색 판정", `🎲 d20 = [${roll}] — ${crit ? '★ 대성공! 기연!' : fumble ? '★ 대실패! 소매치기!' : roll >= 19 ? '특별한 만남' : roll >= 16 ? '분기 이벤트' : roll >= 13 ? 'EXP 획득' : roll >= 9 ? '연구P 획득' : roll >= 5 ? '아이템 발견' : roll >= 2 ? '골드 획득' : ''}`, "log-sys");
+
+    if (fumble) { // 1: 대실패 — 소매치기
+        const lost = rng(15, 40);
+        player.gold = Math.max(0, player.gold - lost);
+        addLog("대실패!", `소매치기를 당했습니다! Gold -${lost}`, "log-err");
+    } else if (roll <= 4) { // 2-4: 골드 획득
         const g = rng(20, 60) + player.circle * 5;
         player.gold += g;
         addLog("마을 탐색", `시장을 돌아다니다 거래를 성사시켰습니다. Gold +${g}G`, "log-sys");
-    } else if (roll < 0.55) {
-        // 아이템 발견
+    } else if (roll <= 8) { // 5-8: 아이템 발견
         const item = getRandomItem();
         player.inventory.push(item);
         addLog("마을 탐색", `골목 어귀에서 뭔가를 발견했습니다. [${item.rarity}] ${item.name} 획득!`, "log-attain");
-    } else if (roll < 0.75) {
-        // 연구 포인트 (주민에게 정보 수집)
+    } else if (roll <= 12) { // 9-12: 연구P
         const rp = rng(5, 15) + player.circle;
         player.researchPoints += rp;
         addLog("마을 탐색", `현지인에게 마법에 관한 이야기를 들었습니다. 연구P +${rp}`, "log-sys");
-    } else if (roll < 0.88) {
-        // 소량 EXP (의미 있는 경험)
+    } else if (roll <= 15) { // 13-15: EXP
         const exp = rng(15, 35);
         player.exp += exp;
         addLog("마을 탐색", `마을에서 뜻밖의 상황에 대처하며 성장했습니다. EXP +${exp}`, "log-sys");
         checkLevelUp();
-    } else if (roll < 0.92) {
-        // NPC 우연 조우
+    } else if (roll <= 18) { // 16-18: 분기 이벤트
+        triggerBranchEvent(null);
+        return;
+    } else if (roll === 19) { // 19: NPC 조우
         addLog("마을 탐색", "탐색 중 누군가와 마주쳤습니다.", "log-sys");
         triggerNPCEncounter();
         return;
-    } else if (roll < 0.97) {
-        // 5% 분기 이벤트 (마을)
-        triggerBranchEvent(null);
-        return;
-    } else {
-        // 3% 기연
+    } else { // 20: 대성공 — 기연
         triggerFortuneEvent(false);
     }
     updateUI();
@@ -289,25 +288,32 @@ function renderDungeonStageActions(stage) {
     addBtn(panel, "전투 탐색 (적 조우)", () => {
         startDungeonCombat(stage);
     });
-    addBtn(panel, "보물 탐색 (ST-10)", () => {
+    addBtn(panel, "보물 탐색 (ST-10, d20 판정)", () => {
         if (!useStamina(10)) return;
-        // 20% 분기 이벤트 (TRPG 선택지)
-        if (Math.random() < 0.20) { triggerBranchEvent(stage); return; }
-        // 0.1% 히든피스
-        if (Math.random() < 0.001) {
-            const hp = stage.hiddenPiece;
-            const piece = { ...hp };
-            player.inventory.push(piece);
-            addLog("히든피스 발견!!", `[${hp.rarity}] ★ ${hp.name} ★ 을 발견했습니다! (확률 0.1%)`, "log-attain");
-        } else if (Math.random() < 0.35) {
+        // d20 탐색 결과표
+        const { roll, crit, fumble } = d20Check(1);
+        addLog("탐색 판정", `🎲 d20 = [${roll}] — ${crit ? '★ 대성공! 히든피스!' : fumble ? '★ 대실패! 함정!' : roll >= 18 ? '기연 발생!' : roll >= 14 ? '분기 이벤트' : roll >= 7 ? '아이템 발견' : '아무것도 없음'}`, "log-sys");
+
+        if (fumble) { // 1: 대실패 — 함정
+            const dmg = rng(15, 35);
+            player.hp = Math.max(1, player.hp - dmg);
+            addLog("대실패!", `숨겨진 함정에 걸렸습니다! HP -${dmg}`, "log-err");
+            updateUI(); renderCombat(); return;
+        } else if (roll <= 6) { // 2-6: 빈손
+            addLog("탐색", "아무것도 찾지 못했습니다.", "log-sys");
+        } else if (roll <= 13) { // 7-13: 아이템
             const item = getRandomItem();
             player.inventory.push(item);
             addLog("보물 발견", `[${item.rarity}] ${item.name} 획득!`, "log-attain");
-        } else {
-            addLog("탐색", "아무것도 찾지 못했습니다.", "log-sys");
+        } else if (roll <= 17) { // 14-17: 분기 이벤트
+            triggerBranchEvent(stage); return;
+        } else if (roll <= 19) { // 18-19: 기연
+            triggerFortuneEvent(true); return;
+        } else { // 20: 대성공 — 히든피스
+            const hp = stage.hiddenPiece;
+            player.inventory.push({ ...hp });
+            addLog("히든피스 발견!!", `[${hp.rarity}] ★ ${hp.name} ★ (d20 = 20, 대성공!)`, "log-attain");
         }
-        // 1% 기연 (탑 내)
-        if (Math.random() < 0.01) triggerFortuneEvent(true);
         updateUI();
     });
     if (!cleared) {
@@ -453,16 +459,26 @@ function researchAction() {
         updateUI(); return;
     }
 
-    const chance = Math.min(0.05 + player.researchPoints * 0.001, 0.65);
-    if (Math.random() < chance) {
+    // DC: 연구P가 쌓일수록 낮아짐 (쉬워짐). DC 18(최고난도) ~ DC 5(최저)
+    const dc = Math.max(5, 18 - Math.floor(player.researchPoints / 15));
+    const { roll, success, crit, fumble } = d20Check(dc);
+    addLog("연구 판정", `🎲 d20 = [${roll}] vs DC ${dc} — ${crit ? '★ 대성공!' : success ? '성공' : fumble ? '★ 대실패!' : '실패'} (연구P ${player.researchPoints})`, "log-sys");
+
+    if (fumble) {
+        const lost = Math.min(player.researchPoints, 3);
+        player.researchPoints -= lost;
+        addLog("연구 대실패", `실험이 폭발했습니다! 연구노트가 타버렸습니다. 연구P -${lost}`, "log-err");
+    } else if (success || crit) {
         const spell = (window.SPELLS_DB?.[attr]?.[player.circle] || [])[learnedCount];
         if (spell) {
-            player.learnedSpells.push({ ...spell, mastery: 0 });
-            addLog("연구 성공", `[${spell.name}] 습득! (확률: ${Math.floor(chance * 100)}%)`, "log-attain");
+            player.learnedSpells.push({ ...spell, mastery: crit ? 10 : 0 });
+            const bonus = crit ? ` (대성공 — 초기 숙련도 10 획득! 연구P +5)` : '';
+            if (crit) player.researchPoints += 5;
+            addLog("연구 성공", `[${spell.name}] 습득!${bonus}`, "log-attain");
         }
     } else {
-        addLog("연구 실패", `지식의 조각을 놓쳤습니다. 연구P +1 (확률: ${Math.floor(chance * 100)}%)`, "log-sys");
         player.researchPoints++;
+        addLog("연구 실패", `지식의 조각을 놓쳤습니다. 연구P +1`, "log-sys");
     }
     trackQuest('research', 1);
     updateUI();
@@ -473,6 +489,22 @@ function craftSpell() {
     if (!useStamina(30)) return;
     player.researchPoints -= 15;
 
+    // 제련 d20 판정 (DC 11 = 50%)
+    const { roll, success, crit, fumble } = d20Check(11);
+    addLog("제련 판정", `🎲 d20 = [${roll}] vs DC 11 — ${crit ? '★ 대성공!' : success ? '성공' : fumble ? '★ 대실패!' : '실패'}`, "log-sys");
+
+    if (fumble) {
+        const lost = Math.min(player.researchPoints, 5);
+        player.researchPoints -= lost;
+        addLog("제련 대실패", `이종 마법의 기운이 충돌해 폭발! 추가 연구P -${lost}`, "log-err");
+        updateUI(); return;
+    }
+    if (!success && !crit) {
+        player.researchPoints += 3;
+        addLog("제련 실패", `제련이 실패했지만 경험을 얻었습니다. 연구P +3`, "log-sys");
+        updateUI(); return;
+    }
+
     const attrs = (window.ATTRIBUTES || []).filter(a => a !== player.attribute);
     const targetAttr = attrs[rng(0, attrs.length - 1)];
     const circle = Math.max(1, Math.min(player.circle, 10));
@@ -480,8 +512,10 @@ function craftSpell() {
 
     if (pool.length > 0) {
         const spell = pool[rng(0, pool.length - 1)];
-        player.learnedSpells.push({ ...spell, mastery: 0 });
-        addLog("제련 성공", `이종 속성 [${spell.name}] (${targetAttr}) 획득!`, "log-attain");
+        player.learnedSpells.push({ ...spell, mastery: crit ? 15 : 0 });
+        const bonus = crit ? ` (대성공 — 비용 5P 환급 + 초기 숙련 15!)` : '';
+        if (crit) player.researchPoints += 5;
+        addLog("제련 성공", `이종 속성 [${spell.name}] (${targetAttr}) 획득!${bonus}`, "log-attain");
     } else {
         addLog("제련", `[${targetAttr}] 속성 마법이 이미 완료되었습니다.`, "log-sys");
         player.researchPoints += 5;
@@ -816,10 +850,19 @@ function combatVictory() {
     trackQuest('earn_gold', enemy.gold);
     if (combat.stage) trackQuest('dungeon', 1);
 
-    if (Math.random() < (enemy.drop || 0.2)) {
-        const item = getRandomItem();
-        player.inventory.push(item);
+    // 드롭 d20 판정 (enemy.drop 0.2~1.0 → DC 17~1)
+    const dropDc = Math.max(1, Math.round(21 - (enemy.drop || 0.2) * 20));
+    const dropRoll = d20Check(dropDc);
+    addLog("드롭 판정", `🎲 d20 = [${dropRoll.roll}] vs DC ${dropDc} — ${dropRoll.crit ? '대성공!' : dropRoll.success ? '드롭' : dropRoll.fumble ? '대실패' : '드롭 없음'}`, "log-sys");
+    if (dropRoll.crit) {
+        const item = getRandomItem(); player.inventory.push(item);
+        const bonus = rng(20, 60); player.gold += bonus;
+        addLog("드롭 대성공!", `[${item.rarity}] ${item.name} + Gold +${bonus}G 추가 획득!`, "log-attain");
+    } else if (dropRoll.success) {
+        const item = getRandomItem(); player.inventory.push(item);
         addLog("드롭!", `[${item.rarity}] ${item.name} 획득!`, "log-attain");
+    } else if (dropRoll.fumble) {
+        addLog("드롭 대실패", "적이 아무것도 남기지 않았습니다. (주사위 1)", "log-sys");
     }
 
     checkLevelUp();
@@ -1004,23 +1047,30 @@ function executeNPCAction(action, npc) {
             }
             return;
 
-        case "gamble":
-            if (Math.random() < 0.5) {
-                player.gold += action.winGold || 0;
-                addLog(npc.name, action.log_win || `Gold +${action.winGold}G`, "log-attain");
+        case "gamble": {
+            const gRoll = d20Check(11); // DC 11 = 50%
+            addLog("도박 판정", `🎲 d20 = [${gRoll.roll}] vs DC 11 — ${gRoll.crit ? '대성공!' : gRoll.success ? '승리' : gRoll.fumble ? '대실패!' : '패배'}`, "log-sys");
+            if (gRoll.success || gRoll.crit) {
+                const win = gRoll.crit ? Math.floor((action.winGold || 0) * 2) : (action.winGold || 0);
+                player.gold += win;
+                addLog(npc.name, action.log_win || `Gold +${win}G${gRoll.crit ? ' (대성공 — 2배!)' : ''}`, "log-attain");
             } else {
-                const loss = Math.min(action.loseGold || 0, player.gold);
+                const loss = Math.min(gRoll.fumble ? Math.floor((action.loseGold || 0) * 2) : (action.loseGold || 0), player.gold);
                 player.gold -= loss;
-                addLog(npc.name, action.log_lose || `Gold -${loss}G`, "log-err");
+                addLog(npc.name, action.log_lose || `Gold -${loss}G${gRoll.fumble ? ' (대실패 — 2배 손실!)' : ''}`, "log-err");
             }
-            break;
+            break; }
 
-        case "persuade":
-            if (Math.random() < 0.6) {
-                player.exp += action.successExpGain || 0;
-                addLog(npc.name, action.successLog || "설득 성공! EXP 획득.", "log-attain");
+        case "persuade": {
+            const pRoll = d20Check(9); // DC 9 = 60%
+            addLog("설득 판정", `🎲 d20 = [${pRoll.roll}] vs DC 9 — ${pRoll.crit ? '완벽한 설득!' : pRoll.success ? '성공' : pRoll.fumble ? '최악의 실패!' : '실패'}`, "log-sys");
+            if (pRoll.success || pRoll.crit) {
+                const gain = pRoll.crit ? Math.floor((action.successExpGain || 0) * 2) : (action.successExpGain || 0);
+                player.exp += gain;
+                addLog(npc.name, action.successLog || `설득 성공! EXP +${gain}${pRoll.crit ? ' (대성공!)' : ''}`, "log-attain");
                 checkLevelUp();
             } else {
+                if (pRoll.fumble) { const pd = rng(5, 15); player.hp = Math.max(1, player.hp - pd); addLog("대실패", `역효과! 먼저 공격받았습니다. HP -${pd}`, "log-err"); }
                 addLog(npc.name, action.failLog || "설득 실패! 전투 발생!", "log-err");
                 const failDb = window.ENEMIES_DB || [];
                 const failEnemy = failDb.find(e => e.id === action.failEnemyId);
@@ -1031,7 +1081,7 @@ function executeNPCAction(action, npc) {
                     renderCombat(); return;
                 }
             }
-            break;
+            break; }
 
         case "buy_item":
             if (player.gold < (action.cost || 0)) { addLog("상점", "골드가 부족합니다."); return; }
@@ -1081,13 +1131,9 @@ function executeNPCAction(action, npc) {
 
 function getRandomItem() {
     const db = window.ITEMS_DB || {};
-    const styles = window.RARITY_STYLE || {};
-    const roll = Math.random();
-    let rarity = "일반"; let cum = 0;
-    for (const [r, data] of Object.entries(styles)) {
-        cum += data.chance;
-        if (roll < cum) { rarity = r; break; }
-    }
+    // d20 희귀도 테이블: 1-11 일반(55%), 12-16 매직(25%), 17-19 유니크(15%), 20 신화(5%)
+    const itemRoll = d20();
+    const rarity = itemRoll === 20 ? "신화" : itemRoll >= 17 ? "유니크" : itemRoll >= 12 ? "매직" : "일반";
     const pool = [...(db.weapon || []), ...(db.armor || []), ...(db.consumable || [])].filter(i => i.rarity === rarity);
     if (!pool.length) return { id: "c_hp_potion", name: "HP 포션", slot: "소비", rarity: "일반", desc: "HP +40", effect: p => { p.hp = Math.min(p.hp + 40, p.maxHp); return "HP +40 회복"; } };
     return { ...(pool[rng(0, pool.length - 1)]) };

@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>마법사 키우기 v4.0</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div id="ribbon">
+    <div>마법사 키우기 v4.0 &nbsp;|&nbsp; 파일(F) &nbsp; 홈(H) &nbsp; 시스템(S)</div>
+    <div>
+        <button onclick="saveGame()" class="ribbon-btn">데이터 저장</button>
+        <button onclick="resetGame()" class="ribbon-btn" style="border-color:#ff5a5a; color:#ffdddd;">초기화</button>
+    </div>
+</div>
+
+<div id="workspace">
+    <div id="sidebar-data">
+        <div id="fixed-profile">
+            <table>
+                <tr><th colspan="2" class="th-green">Mage_Status</th></tr>
+                <tr><td>무기 / 방어구</td><td id="ui-gear" style="text-align:right; font-size:10px;">없음 / 없음</td></tr>
+                <tr><td>서클 / 레벨</td><td style="text-align:right; font-weight:bold;"><span id="ui-circle">0</span>C / <span id="ui-level">1</span>Lv</td></tr>
+                <tr><td>EXP / 골드</td><td id="ui-exp-gold" style="text-align:right; font-size:10px;">0/100 EXP / 200G</td></tr>
+                <tr>
+                    <td>체력 (ST)</td>
+                    <td>
+                        <div class="cell-bar-container">
+                            <div id="st-fill" class="cell-bar-fill" style="width:100%; background:#4caf50;"></div>
+                        </div>
+                        <div id="st-val" style="font-size:9px; text-align:right; color:#666;">100/100</div>
+                    </td>
+                </tr>
+                <tr>
+                    <td>생명력 (HP)</td>
+                    <td>
+                        <div class="cell-bar-container">
+                            <div id="hp-fill" class="cell-bar-fill" style="width:100%; background:#ff5a5a;"></div>
+                        </div>
+                        <div id="hp-val" style="font-size:9px; text-align:right; color:#666;">60/60</div>
+                    </td>
+                </tr>
+                <tr>
+                    <td>마나 (MP)</td>
+                    <td>
+                        <div class="cell-bar-container">
+                            <div id="mana-fill" class="cell-bar-fill" style="width:100%; background:#5a5aff;"></div>
+                        </div>
+                        <div id="mana-val" style="font-size:9px; text-align:right; color:#666;">30/30</div>
+                    </td>
+                </tr>
+                <tr>
+                    <td>경험치</td>
+                    <td>
+                        <div class="cell-bar-container">
+                            <div id="exp-fill" class="cell-bar-fill" style="width:0%; background:#a855f7;"></div>
+                        </div>
+                    </td>
+                </tr>
+                <tr><td>연구P / 생존일</td><td id="ui-res-day" style="text-align:right; font-size:10px;">10P / 1 Day</td></tr>
+            </table>
+        </div>
+        <div id="scrollable-tabs">
+            <div class="tab-btn-group">
+                <button id="btn-spells"    class="tab-btn active" onclick="switchTab('spells')">마법</button>
+                <button id="btn-inventory" class="tab-btn"        onclick="switchTab('inventory')">가방</button>
+                <button id="btn-mastery"   class="tab-btn"        onclick="switchTab('mastery')">숙련</button>
+            </div>
+            <div id="tab-content"></div>
+        </div>
+    </div>
+
+    <div id="main-view">
+        <div id="log-area"></div>
+        <div id="action-grid"></div>
+    </div>
+</div>
+
+<div id="start-overlay">
+    <div id="intro-box">
+        <h2 style="color: var(--excel-green); margin: 0;">마법사 키우기</h2>
+        <p style="font-size: 12px; line-height: 1.8; color: #333; margin: 20px 0; text-align: left;">
+            <b style="color: var(--excel-green);">[v4.0 완전 개편]</b><br>
+            ▪ 700종 고유 마법명 완성 (7속성 × 10서클 × 10종)<br>
+            ▪ 에드먼드 스승 서사 — 서클 성장마다 이벤트, 7서클 희생<br>
+            ▪ 전투 시스템 개선 — 적 HP, 물리공격, 도망, 부활<br>
+            ▪ 4단계 아이템 (일반/매직/유니크/신화) + 신화 스킬<br>
+            ▪ EXP → 레벨업, 서클 승급 조건, 기연 랜덤 이벤트<br>
+            ▪ NPC 만남, 상점, 소비 아이템 전투 중 사용 가능
+        </p>
+        <button class="excel-btn" style="width:100%; text-align:center; font-weight:bold; border-color:var(--excel-green); margin-bottom:8px;" onclick="startGame()">새로운 여정 시작</button>
+        <button id="load-btn" class="excel-btn" style="display:none; width:100%; text-align:center;" onclick="loadGame()">기존 기록 불러오기</button>
+    </div>
+</div>
+
+<!-- 게임 오버 오버레이 -->
+<div id="gameover-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.88); z-index:2000; flex-direction:column; align-items:center; justify-content:center;">
+    <div style="max-width:480px; text-align:center; padding:40px; border:1px solid #555; background:#111; border-top:4px solid #d32f2f;">
+        <div style="font-size:32px; color:#d32f2f; font-weight:bold; margin-bottom:16px;">— 사망 —</div>
+        <p id="go-death-msg" style="color:#ccc; font-size:14px; line-height:1.8; margin-bottom:12px;"></p>
+        <p id="go-epitaph"   style="color:#888; font-size:12px; font-style:italic; margin-bottom:20px;"></p>
+        <p id="go-stats"     style="color:#555; font-size:11px; border-top:1px solid #333; padding-top:12px; margin-bottom:24px;"></p>
+        <button onclick="restartGame()" style="background:#d32f2f; border:none; color:white; padding:12px 32px; font-size:14px; cursor:pointer; font-family:inherit;">처음부터 다시 시작</button>
+    </div>
+</div>
+
+<script src="js/data/spells.js"></script>
+<script src="js/engine.js"></script>
+
+</body>
+</html>

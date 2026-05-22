@@ -15,7 +15,23 @@ let player = {
     edmond: { events: [], sacrificed: false },
     clearedStages: [],
     currentStage: null,
-    townExploreCount: 0  // 오늘 마을 탐색 횟수 (휴식 시 초기화)
+    townExploreCount: 0,
+    dailyQuests: [],
+    questsDay: -1,
+    questProgress: { kill: 0, research: 0, explore: 0, spell: 0, dungeon: 0, earn_gold: 0, npc: 0 },
+    synthesizedSpells: [],
+    karma: 0
+};
+
+// 속성별 상태이상 정의 (dc = d20 성공 기준값. roll >= dc → 성공)
+const STATUS_MAP = {
+    "불":   { id: "burn",   name: "화상",  dc: 14, turns: 3, tick: 8 },
+    "번개": { id: "stun",   name: "감전",  dc: 16, turns: 2, atkMult: 0.65 },
+    "물":   { id: "freeze", name: "빙결",  dc: 17, turns: 2, skipDC: 14 },
+    "독":   { id: "poison", name: "맹독",  dc: 12, turns: 4, tick: 6 },
+    "어둠": { id: "fear",   name: "공포",  dc: 17, turns: 2, atkMult: 0.60 },
+    "바람": { id: "bleed",  name: "출혈",  dc: 15, turns: 3, tick: 6 },
+    "중력": { id: "crush",  name: "압쇄",  dc: 16, turns: 2, defMult: 0.50 },
 };
 
 // ---- 유틸리티 ----
@@ -26,6 +42,13 @@ function safeExec(fn, ...args) {
 }
 
 function rng(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+
+// d20 주사위: 1=대실패, 20=대성공, roll>=dc → 성공
+function d20() { return rng(1, 20); }
+function d20Check(dc) {
+    const roll = d20();
+    return { roll, success: roll >= dc, crit: roll === 20, fumble: roll === 1 };
+}
 
 function addLog(title, text, type = '') {
     const win = document.getElementById('log-area');
@@ -86,6 +109,7 @@ function startGame() {
     document.getElementById('start-overlay').style.display = 'none';
     addLog("프롤로그", "흑마법의 불길이 대륙을 뒤덮은 날, 당신은 스승 에드먼드에게 구조되었습니다.", "log-attain");
     addLog("에드먼드", "'살아남았구나. 이제 어떤 마력을 선택해 운명을 개척하겠느냐?'", "log-attain");
+    generateDailyQuests();
     renderScene("Home");
 }
 
@@ -140,6 +164,7 @@ function buildHomeScene(panel) {
 function buildLabScene(panel) {
     addBtn(panel, "마법 연구 (ST-20, MP-10)", researchAction);
     addBtn(panel, "마법 제련 — 이종 속성 습득 (ST-30, 연구P-15)", craftSpell);
+    addBtn(panel, "마법 합성 — 2속성 결합 신마법 창조 (연구P-25)", openSynthesisScene, "border-color:#8e44ad;color:#8e44ad;");
     addBtn(panel, "← 오두막으로", () => renderScene("Home"));
 }
 
@@ -156,10 +181,16 @@ function buildTownScene(panel) {
         if (remaining <= 0) { addLog("마을", "오늘은 더 이상 탐색할 기력이 없습니다. 휴식 후 다시 오세요.", "log-sys"); return; }
         if (!useStamina(15)) return;
         player.townExploreCount = (player.townExploreCount || 0) + 1;
+        trackQuest('explore', 1);
         doTownExplore();
     });
     if (remaining <= 0) exploreBtn.style.opacity = '0.5';
 
+    // 완료된 의뢰 있으면 강조 표시
+    const pendingReward = (player.dailyQuests || []).some(q => q.done && !q.claimed);
+    const guildLabel = pendingReward ? "의뢰 보드 — 수령 대기중!" : "의뢰 보드 (일일 퀘스트)";
+    addBtn(panel, guildLabel, () => buildGuildScene(document.getElementById('action-grid')),
+        pendingReward ? "border-color:#ff8c00;color:#ff8c00;font-weight:bold;" : "");
     addBtn(panel, "상점 (아이템 구매)", openShop);
     addBtn(panel, "소지품 관리 (장착/사용)", openInventoryUse);
     addBtn(panel, "NPC 만나기 (ST-10)", () => {
@@ -192,11 +223,15 @@ function doTownExplore() {
         player.exp += exp;
         addLog("마을 탐색", `마을에서 뜻밖의 상황에 대처하며 성장했습니다. EXP +${exp}`, "log-sys");
         checkLevelUp();
-    } else if (roll < 0.97) {
+    } else if (roll < 0.92) {
         // NPC 우연 조우
         addLog("마을 탐색", "탐색 중 누군가와 마주쳤습니다.", "log-sys");
         triggerNPCEncounter();
-        return; // NPC 씬이 panel을 덮어쓰므로 여기서 종료
+        return;
+    } else if (roll < 0.97) {
+        // 5% 분기 이벤트 (마을)
+        triggerBranchEvent(null);
+        return;
     } else {
         // 3% 기연
         triggerFortuneEvent(false);
@@ -211,18 +246,23 @@ function buildDungeonHubScene(panel) {
     addLog("흑마법사의 탑", "어둠이 깔린 탑이 저 멀리 보입니다. 어느 구역으로 향하겠습니까?", "log-sys");
 
     const stages = window.DUNGEON_STAGES || [];
-    stages.forEach(stage => {
-        const unlocked = player.circle >= stage.minCircle;
-        const cleared  = player.clearedStages.includes(stage.id);
-        const isNext   = !cleared && unlocked;
+    stages.forEach((stage, idx) => {
+        const circleOk    = player.circle >= stage.minCircle;
+        const prevCleared = idx === 0 || player.clearedStages.includes(stages[idx - 1].id);
+        const unlocked    = circleOk && prevCleared;
+        const cleared     = player.clearedStages.includes(stage.id);
 
         let label = stage.name;
-        if (cleared) label = `✓ ${stage.name}`;
-        else if (!unlocked) label = `[${stage.minCircle}서클 필요] ${stage.name}`;
+        if (cleared)          label = `✓ ${stage.name}`;
+        else if (!prevCleared) label = `[이전 구역 클리어 필요] ${stage.name}`;
+        else if (!circleOk)   label = `[${stage.minCircle}서클 필요] ${stage.name}`;
 
-        const style = cleared ? "color:#666;border-color:#aaa;" : isNext ? "color:#217346;border-color:#217346;font-weight:bold;" : "opacity:0.5;";
+        const style = cleared   ? "color:#666;border-color:#aaa;"
+                    : unlocked  ? "color:#217346;border-color:#217346;font-weight:bold;"
+                    : "opacity:0.5;";
         addBtn(panel, label, () => {
-            if (!unlocked) { addLog("경고", `${stage.minCircle}서클 이상이어야 진입할 수 있습니다.`); return; }
+            if (!prevCleared) { addLog("경고", "이전 구역의 보스를 클리어해야 진입할 수 있습니다.", "log-err"); return; }
+            if (!circleOk)    { addLog("경고", `${stage.minCircle}서클 이상이어야 진입할 수 있습니다.`, "log-err"); return; }
             enterDungeonStage(stage);
         }, style);
     });
@@ -251,6 +291,8 @@ function renderDungeonStageActions(stage) {
     });
     addBtn(panel, "보물 탐색 (ST-10)", () => {
         if (!useStamina(10)) return;
+        // 20% 분기 이벤트 (TRPG 선택지)
+        if (Math.random() < 0.20) { triggerBranchEvent(stage); return; }
         // 0.1% 히든피스
         if (Math.random() < 0.001) {
             const hp = stage.hiddenPiece;
@@ -269,8 +311,10 @@ function renderDungeonStageActions(stage) {
         updateUI();
     });
     if (!cleared) {
-        const bossFn = stage.bossId ? () => startBossCombat(stage) : () => clearStage(stage);
-        addBtn(panel, stage.bossId ? `⚔ 보스 도전: ${stage.bossId === "black_dragon" ? "흑마룡 발투르" : "보스"}` : "구역 제압 (전투 필요)", bossFn, "border-color:#d32f2f;color:#d32f2f;font-weight:bold;");
+        const bossData = stage.bossId ? (window.ENEMIES_DB || []).find(e => e.id === stage.bossId) : null;
+        const bossFn   = bossData ? () => startBossCombat(stage) : () => clearStage(stage);
+        const bossLabel = bossData ? `⚔ 보스 토벌: ${bossData.name}` : "구역 제압";
+        addBtn(panel, bossLabel, bossFn, "border-color:#d32f2f;color:#d32f2f;font-weight:bold;");
     }
     addBtn(panel, "← 탑 목록으로", () => renderScene("Dungeon"));
 }
@@ -279,12 +323,12 @@ function startDungeonCombat(stage) {
     const db = window.ENEMIES_DB || [];
     const tiers = stage.enemyTiers || [1];
     const tier = tiers[rng(0, tiers.length - 1)];
-    const candidates = db.filter(e => e.tier === tier && e.id !== "black_dragon");
+    const candidates = db.filter(e => e.tier === tier && e.tier < 5);
     if (!candidates.length) return;
     const base = candidates[rng(0, candidates.length - 1)];
     const scale = 1 + (player.circle - 1) * 0.25;
     const enemy = { ...base, hp: Math.floor(base.maxHp * scale), maxHp: Math.floor(base.maxHp * scale), pwr: Math.floor(base.pwr * scale) };
-    combat = { enemy, playerRevived: false, stage };
+    combat = { enemy, playerRevived: false, stage, statusEffects: {} };
     player.inCombat = true;
     addLog("조우", `[${enemy.name}] 출현! "${enemy.intro}"`, "log-err");
     addLog("적 정보", `HP: ${enemy.hp} / 공격력: ${enemy.pwr}`, "log-sys");
@@ -297,7 +341,7 @@ function startBossCombat(stage) {
     if (!boss) { clearStage(stage); return; }
     const scale = 1 + (player.circle - 1) * 0.2;
     const enemy = { ...boss, hp: Math.floor(boss.maxHp * scale), maxHp: Math.floor(boss.maxHp * scale), pwr: Math.floor(boss.pwr * scale) };
-    combat = { enemy, playerRevived: false, stage, isBoss: true };
+    combat = { enemy, playerRevived: false, stage, isBoss: true, statusEffects: {} };
     player.inCombat = true;
     addLog("보스 등장", `[${enemy.name}]이 나타납니다!`, "log-err");
     addLog(enemy.name, `"${enemy.intro}"`, "log-err");
@@ -420,6 +464,7 @@ function researchAction() {
         addLog("연구 실패", `지식의 조각을 놓쳤습니다. 연구P +1 (확률: ${Math.floor(chance * 100)}%)`, "log-sys");
         player.researchPoints++;
     }
+    trackQuest('research', 1);
     updateUI();
 }
 
@@ -468,7 +513,7 @@ function circleAdvance() {
 
 // ---- 전투 ----
 
-let combat = { enemy: null, playerRevived: false, stage: null, isBoss: false };
+let combat = { enemy: null, playerRevived: false, stage: null, isBoss: false, statusEffects: {} };
 
 function startCombat() {
     const db = window.ENEMIES_DB || [];
@@ -478,7 +523,7 @@ function startCombat() {
     const base = candidates[rng(0, candidates.length - 1)];
     const scale = 1 + (player.circle - 1) * 0.3;
     const enemy = { ...base, hp: Math.floor(base.maxHp * scale), maxHp: Math.floor(base.maxHp * scale), pwr: Math.floor(base.pwr * scale) };
-    combat = { enemy, playerRevived: false, stage: null };
+    combat = { enemy, playerRevived: false, stage: null, statusEffects: {} };
     player.inCombat = true;
     addLog("전투 시작", `[${enemy.name}] 출현! "${enemy.intro}"`, "log-err");
     renderCombat();
@@ -491,30 +536,109 @@ function renderCombat() {
     if (!enemy) return;
 
     const hpPct = Math.max(0, Math.floor(enemy.hp / enemy.maxHp * 100));
-    addLog("전투", `[${enemy.name}] HP: ${enemy.hp}/${enemy.maxHp} (${hpPct}%)`, "log-sys");
+    const eff = combat.statusEffects || {};
+
+    // ── 비주얼 적 상태 패널 ──
+    const hpColor = hpPct > 60 ? '#4caf50' : hpPct > 30 ? '#ff9800' : '#f44336';
+    const effColors = { burn:'#ff5722', stun:'#ffc107', freeze:'#2196f3', poison:'#4caf50', fear:'#9c27b0', bleed:'#e91e63', crush:'#795548' };
+    const attrColors = { "불":"#e74c3c","번개":"#f39c12","바람":"#27ae60","중력":"#8e44ad","물":"#2980b9","독":"#16a085","어둠":"#2c3e50" };
+    const weakBadges   = (enemy.weak||[]).map(a  => `<span style="background:${attrColors[a]||'#4caf50'};color:white;padding:0 5px;border-radius:8px;font-size:9px;">${a}</span>`).join(' ');
+    const resistBadges = (enemy.resist||[]).map(a => `<span style="background:#777;color:white;padding:0 5px;border-radius:8px;font-size:9px;">${a}</span>`).join(' ');
+    const effBadges = Object.entries(eff).map(([id, turns]) => {
+        const def = Object.values(STATUS_MAP).find(s => s.id === id);
+        return `<span style="background:${effColors[id]||'#888'};color:white;padding:0 5px;border-radius:8px;font-size:9px;">${def?.name||id} ${turns}</span>`;
+    }).join(' ');
+
+    const statusBar = document.createElement('div');
+    statusBar.style.cssText = 'padding:7px 10px;background:#fff5f5;border:1px solid #f44336;border-radius:2px;margin-bottom:6px;font-size:11px;';
+    statusBar.innerHTML =
+        `<b>${enemy.name}</b> &nbsp;<span style="color:#999;font-size:10px;">HP ${enemy.hp}/${enemy.maxHp}</span>` +
+        `<div style="height:6px;background:#eee;border-radius:3px;margin:3px 0;overflow:hidden;"><div style="width:${hpPct}%;height:100%;background:${hpColor};transition:width 0.3s;"></div></div>` +
+        `<div style="margin-top:2px;">` +
+        (weakBadges   ? `약점 ${weakBadges} &nbsp;` : '') +
+        (resistBadges ? `저항 ${resistBadges} &nbsp;` : '') +
+        (effBadges    ? `상태 ${effBadges}` : '') +
+        `</div>`;
+    panel.appendChild(statusBar);
 
     // 마법 공격 (최근 6개)
     player.learnedSpells.slice(-6).forEach(s => {
         const ok = player.mana >= s.manaCost;
+        const isWeak    = enemy.weak?.includes(s.attr);
+        const isResist  = enemy.resist?.includes(s.attr);
+        const badge = isWeak ? ' <b style="color:#4caf50">[약점]</b>' : isResist ? ' <span style="color:#f44336">[저항]</span>' : '';
+        const masteryPct = s.mastery || 0;
+        const masteryBonus = masteryPct >= 100 ? 0.10 : masteryPct >= 50 ? 0.05 : 0;
+        const dispPwr = Math.floor((s.power + getAtkBonus()) * (1 + masteryBonus));
+
         const b = document.createElement('button');
         b.className = 'excel-btn';
         if (!ok) b.style.opacity = '0.5';
-        b.innerHTML = `${s.name} <small>(MP ${s.manaCost} / 위력 ${s.power + getAtkBonus()})</small>`;
+        b.innerHTML = `${s.name}${badge} <small>(MP ${s.manaCost} / 위력 ${dispPwr}${masteryBonus > 0 ? ` +${Math.floor(masteryBonus*100)}%숙` : ''})</small>`;
         b.onclick = () => {
             if (player.mana < s.manaCost) { addLog("경고", "마나 부족!"); return; }
             player.mana -= s.manaCost;
             s.mastery = Math.min(100, (s.mastery || 0) + 2);
-            const dmg = Math.floor((s.power + getAtkBonus()) * (0.85 + Math.random() * 0.3));
-            addLog("마법 공격", `[${s.name}] — ${enemy.name}에게 ${dmg} 데미지!`, "log-attain");
+            const mb = (s.mastery >= 100 ? 0.10 : s.mastery >= 50 ? 0.05 : 0);
+            // d20 공격 판정 (DC 8 = 65% 명중)
+            const atkRoll = d20Check(8);
+            const atkLabel = atkRoll.crit ? '★ 크리티컬!' : atkRoll.fumble ? '★ 대실패!' : atkRoll.success ? '명중' : '빗나감';
+            addLog("공격 판정", `🎲 d20 = [${atkRoll.roll}] — ${atkLabel}`, "log-sys");
+            if (atkRoll.fumble) {
+                const backlash = Math.max(1, Math.floor(player.maxHp * 0.05));
+                player.hp = Math.max(1, player.hp - backlash);
+                addLog("마법 역류", `마법이 역류! 자신에게 ${backlash} 피해를 입었습니다. (대실패)`, "log-err");
+                updateUI(); renderCombat(); return;
+            }
+            if (!atkRoll.success) {
+                addLog("빗나감", `${enemy.name}이 공격을 회피했습니다!`, "log-sys");
+                enemyAttack(); return;
+            }
+            let baseDmg = Math.floor((s.power + getAtkBonus()) * (1 + mb));
+            if (atkRoll.crit) baseDmg = Math.floor(baseDmg * 2);
+            let dmgMult = 1, note = '';
+            if (enemy.weak?.includes(s.attr))        { dmgMult = 1.5; note = ' [약점 1.5x]'; }
+            else if (enemy.resist?.includes(s.attr)) { dmgMult = 0.65; note = ' [저항 0.65x]'; }
+            const dmg = Math.floor(baseDmg * dmgMult);
+            const critNote = atkRoll.crit ? ' ★ 크리티컬!' : '';
+            addLog("마법 공격", `[${s.name}]${note}${critNote} — ${enemy.name}에게 ${dmg} 데미지!`, "log-attain");
+            applyStatusEffect(s.attr);
+            trackQuest('spell', 1);
             enemyTakeDamage(dmg);
         };
         panel.appendChild(b);
     });
 
-    // 지팡이 타격
-    addBtn(panel, `지팡이 타격 (물리, 위력 ${5 + getAtkBonus()}~${15 + getAtkBonus()})`, () => {
-        const dmg = rng(5 + getAtkBonus(), 15 + getAtkBonus());
-        addLog("물리 공격", `지팡이로 타격! ${enemy.name}에게 ${dmg} 데미지.`);
+    // 합성 마법
+    (player.synthesizedSpells || []).forEach(s => {
+        const ok = player.mana >= s.manaCost;
+        const b = document.createElement('button');
+        b.className = 'excel-btn';
+        b.style.borderColor = '#8e44ad';
+        b.style.color = '#8e44ad';
+        if (!ok) b.style.opacity = '0.5';
+        const attrTags = s.attrs.map(a => `<span style="color:${attrColors[a]||'#8e44ad'}">${a}</span>`).join('+');
+        b.innerHTML = `[합성] ${s.name} (${attrTags}) <small>(MP ${s.manaCost} / 위력 ${s.power + getAtkBonus()})</small>`;
+        b.onclick = () => {
+            if (player.mana < s.manaCost) { addLog("경고", "마나 부족!"); return; }
+            player.mana -= s.manaCost;
+            useSynthesisSpell(s);
+        };
+        panel.appendChild(b);
+    });
+
+    // 지팡이 타격 (d20 판정, DC 6 = 75% 명중)
+    addBtn(panel, `지팡이 타격 (d20 판정, 위력 ${5 + getAtkBonus()}~${15 + getAtkBonus()})`, () => {
+        const { roll, success, crit, fumble } = d20Check(6);
+        addLog("물리 판정", `🎲 d20 = [${roll}] vs DC 6 — ${crit ? '★ 크리티컬!' : fumble ? '★ 대실패!' : success ? '명중' : '빗나감'}`, "log-sys");
+        if (fumble) {
+            addLog("대실패", "지팡이를 놓쳐버렸습니다! 다음 공격 기회를 잃었습니다.", "log-err");
+            enemyAttack(); return;
+        }
+        if (!success) { addLog("빗나감", `${enemy.name}이 지팡이를 피했습니다!`, "log-sys"); enemyAttack(); return; }
+        let dmg = rng(5 + getAtkBonus(), 15 + getAtkBonus());
+        if (crit) dmg *= 2;
+        addLog("물리 공격", `지팡이로 타격!${crit ? ' ★ 크리티컬!' : ''} ${enemy.name}에게 ${dmg} 데미지.`);
         enemyTakeDamage(dmg);
     });
 
@@ -537,9 +661,22 @@ function renderCombat() {
         });
     }
 
-    // 도망
-    addBtn(panel, "도망치기 (성공률 65%)", () => {
-        if (Math.random() < 0.65) {
+    // 도망 (DC 8 = 65% 성공, 1=대실패, 20=대성공)
+    addBtn(panel, "도망치기 (DC 8, d20 판정)", () => {
+        const { roll, success, crit, fumble } = d20Check(8);
+        addLog("도주 판정", `🎲 d20 = [${roll}] vs DC 8 — ${crit ? '완벽한 도주!' : success ? '성공' : fumble ? '★ 대실패!' : '실패'}`, "log-sys");
+        if (fumble) {
+            addLog("대실패", "도주 시도가 역효과! 적이 기회를 놓치지 않습니다.", "log-err");
+            enemyAttack(); enemyAttack(); return;
+        }
+        if (crit) {
+            const bonus = rng(10, 30);
+            player.gold += bonus;
+            addLog("완벽한 도주", `순간이동하듯 사라지며 흘려진 금화를 주웠습니다! Gold +${bonus}`, "log-attain");
+            player.inCombat = false;
+            renderScene("Dungeon"); return;
+        }
+        if (success) {
             addLog("도망", "재빠르게 도망쳤습니다!", "log-sys");
             player.inCombat = false;
             renderScene("Dungeon");
@@ -566,12 +703,87 @@ function enemyTakeDamage(dmg) {
     else enemyAttack();
 }
 
+function applyStatusEffect(attr) {
+    const def = STATUS_MAP[attr];
+    if (!def || !combat.enemy) return;
+    const { roll, success, crit, fumble } = d20Check(def.dc);
+    const label = crit ? '대성공!' : success ? '성공' : fumble ? '대실패' : '실패';
+    addLog("상태이상 판정", `🎲 d20 = [${roll}] vs DC ${def.dc} — ${label}`, "log-sys");
+    if (fumble) { addLog("역효과", `마법이 안정되지 못해 상태이상이 발동하지 않았습니다.`, "log-sys"); return; }
+    if (success) {
+        const turns = crit ? def.turns * 2 : def.turns;
+        const prev = combat.statusEffects[def.id] || 0;
+        combat.statusEffects[def.id] = Math.max(prev, turns);
+        addLog("상태이상", `[${combat.enemy.name}]에게 [${def.name}] 부여!${crit ? ' (대성공 — 2배 지속!)' : ''} (${turns}턴)`, "log-attain");
+    }
+}
+
+function processStatusEffects() {
+    const eff = combat.statusEffects;
+    if (!combat.enemy) return;
+    let totalTick = 0;
+    const expired = [];
+    for (const [id, turns] of Object.entries(eff)) {
+        const def = Object.values(STATUS_MAP).find(s => s.id === id);
+        if (def?.tick) totalTick += def.tick;
+        if (turns <= 1) expired.push(id);
+        else eff[id] = turns - 1;
+    }
+    expired.forEach(k => delete eff[k]);
+    if (totalTick > 0) {
+        combat.enemy.hp -= totalTick;
+        addLog("상태이상 피해", `${combat.enemy.name}이 상태이상으로 ${totalTick} 피해! (HP ${Math.max(0, combat.enemy.hp)}/${combat.enemy.maxHp})`, "log-sys");
+    }
+}
+
 function enemyAttack() {
     const enemy = combat.enemy;
     if (!enemy) return;
-    const rawDmg = rng(Math.floor(enemy.pwr * 0.7), enemy.pwr);
-    const dmg = Math.max(1, rawDmg - getDefBonus());
-    addLog(enemy.name, `"${enemy.atk}" — 당신에게 ${dmg} 데미지! (방어 -${getDefBonus()})`, "log-err");
+
+    // 상태이상 틱 먼저 처리
+    processStatusEffects();
+    if (enemy.hp <= 0) { combatVictory(); return; }
+
+    // 빙결: d20 행동 불가 판정
+    if (combat.statusEffects["freeze"]) {
+        const freezeCheck = d20Check(STATUS_MAP["물"].skipDC);
+        addLog("빙결 판정", `🎲 d20 = [${freezeCheck.roll}] vs DC ${STATUS_MAP["물"].skipDC} — ${freezeCheck.success ? '행동 불가!' : '행동 가능'}`, "log-sys");
+        if (freezeCheck.success) {
+            addLog("빙결", `[${enemy.name}]이 빙결로 행동하지 못합니다!`, "log-sys");
+            updateUI(); renderCombat(); return;
+        }
+    }
+
+    // 적 공격 d20 판정 (DC 8 = 65% 명중)
+    const atkRoll = d20Check(8);
+    const atkLabel = atkRoll.crit ? '★ 크리티컬!' : atkRoll.fumble ? '★ 대실패!' : atkRoll.success ? '명중' : '빗나감';
+    addLog("적 공격 판정", `🎲 [${enemy.name}] d20 = [${atkRoll.roll}] — ${atkLabel}`, "log-sys");
+
+    if (atkRoll.fumble) {
+        const selfDmg = Math.max(1, Math.floor(enemy.maxHp * 0.05));
+        combat.enemy.hp = Math.max(1, combat.enemy.hp - selfDmg);
+        addLog(enemy.name, `공격을 실수하여 자신에게 ${selfDmg} 피해를 입었습니다! (대실패)`, "log-sys");
+        if (combat.enemy.hp <= 0) { combatVictory(); return; }
+        updateUI(); renderCombat(); return;
+    }
+    if (!atkRoll.success) {
+        addLog(enemy.name, `공격이 빗나갔습니다!`, "log-sys");
+        updateUI(); renderCombat(); return;
+    }
+
+    let rawDmg = rng(Math.floor(enemy.pwr * 0.7), enemy.pwr);
+    if (atkRoll.crit) rawDmg = Math.floor(rawDmg * 2);
+    // 감전/공포: 적 공격력 감소
+    if (combat.statusEffects["stun"])  rawDmg = Math.floor(rawDmg * (STATUS_MAP["번개"].atkMult || 1));
+    if (combat.statusEffects["fear"])  rawDmg = Math.floor(rawDmg * (STATUS_MAP["어둠"].atkMult || 1));
+
+    let myDef = getDefBonus();
+    // 압쇄: 방어력 감소
+    if (combat.statusEffects["crush"]) myDef = Math.floor(myDef * (STATUS_MAP["중력"].defMult || 1));
+
+    const dmg = Math.max(1, rawDmg - myDef);
+    const critNote = atkRoll.crit ? ' ★ 크리티컬 — 2배 데미지!' : '';
+    addLog(enemy.name, `"${enemy.atk}"${critNote} — 당신에게 ${dmg} 데미지! (방어 -${myDef})`, "log-err");
     player.hp -= dmg;
 
     // 불사조 로브 부활
@@ -600,6 +812,9 @@ function combatVictory() {
     player.exp += enemy.exp;
     player.gold += enemy.gold;
     addLog("전투 승리", `[${enemy.name}] 처치! EXP +${enemy.exp}, Gold +${enemy.gold}G`, "log-attain");
+    trackQuest('kill', 1);
+    trackQuest('earn_gold', enemy.gold);
+    if (combat.stage) trackQuest('dungeon', 1);
 
     if (Math.random() < (enemy.drop || 0.2)) {
         const item = getRandomItem();
@@ -699,6 +914,7 @@ function triggerNPCEncounter() {
     const pool = db.filter(n => n.id !== "edmond" && player.circle >= (n.minCircle || 0));
     if (!pool.length) { addLog("마을", "오늘은 특별한 사람을 만나지 못했습니다.", "log-sys"); return; }
     const npc = pool[rng(0, pool.length - 1)];
+    trackQuest('npc', 1);
     renderNPCScene(npc);
 }
 
@@ -782,7 +998,7 @@ function executeNPCAction(action, npc) {
             if (enemyBase) {
                 const scale = 1 + (player.circle - 1) * 0.25;
                 const enemy = { ...enemyBase, hp: Math.floor(enemyBase.maxHp * scale), maxHp: Math.floor(enemyBase.maxHp * scale), pwr: Math.floor(enemyBase.pwr * scale) };
-                combat = { enemy, playerRevived: false, stage: null };
+                combat = { enemy, playerRevived: false, stage: null, statusEffects: {} };
                 player.inCombat = true;
                 renderCombat();
             }
@@ -810,7 +1026,7 @@ function executeNPCAction(action, npc) {
                 const failEnemy = failDb.find(e => e.id === action.failEnemyId);
                 if (failEnemy) {
                     const sc = 1 + (player.circle - 1) * 0.25;
-                    combat = { enemy: { ...failEnemy, hp: Math.floor(failEnemy.maxHp * sc), maxHp: Math.floor(failEnemy.maxHp * sc), pwr: Math.floor(failEnemy.pwr * sc) }, playerRevived: false, stage: null };
+                    combat = { enemy: { ...failEnemy, hp: Math.floor(failEnemy.maxHp * sc), maxHp: Math.floor(failEnemy.maxHp * sc), pwr: Math.floor(failEnemy.pwr * sc) }, playerRevived: false, stage: null, statusEffects: {} };
                     player.inCombat = true;
                     renderCombat(); return;
                 }
@@ -1019,7 +1235,8 @@ function restAction() {
     player.mana = player.maxMana;
     player.hp = Math.min(player.hp + 30, player.maxHp);
     player.townExploreCount = 0;
-    addLog("휴식", `Day ${player.day}. 기력을 완전히 회복했습니다. HP+30 회복. (마을 탐색 횟수 초기화)`, "log-sys");
+    generateDailyQuests();
+    addLog("휴식", `Day ${player.day}. 기력을 완전히 회복했습니다. HP+30 회복.`, "log-sys");
     renderScene("Home");
 }
 
@@ -1031,7 +1248,8 @@ function updateUI() {
 
     set('ui-circle', player.circle);
     set('ui-level', player.level);
-    set('ui-res-day', `${player.researchPoints}P / ${player.day} Day`);
+    const karmaTitle = player.karma >= 50 ? '의로운' : player.karma <= -50 ? '냉혹한' : '중립';
+    set('ui-res-day', `${player.researchPoints}P / ${player.day}일 / ${karmaTitle}`);
     set('ui-exp-gold', `${player.exp}/${player.maxExp} EXP / ${player.gold}G`);
 
     const w = player.equipped["무기"];
@@ -1122,6 +1340,11 @@ function loadGame() {
     if (!loaded.clearedStages) loaded.clearedStages = [];
     if (!loaded.currentStage) loaded.currentStage = null;
     if (!loaded.townExploreCount) loaded.townExploreCount = 0;
+    if (!loaded.dailyQuests) loaded.dailyQuests = [];
+    if (loaded.questsDay === undefined) loaded.questsDay = -1;
+    if (!loaded.questProgress) loaded.questProgress = { kill: 0, research: 0, explore: 0, spell: 0, dungeon: 0, earn_gold: 0, npc: 0 };
+    if (!loaded.synthesizedSpells) loaded.synthesizedSpells = [];
+    if (loaded.karma === undefined) loaded.karma = 0;
     player = loaded;
     document.getElementById('start-overlay').style.display = 'none';
     addLog("시스템", "저장 데이터를 불러왔습니다.", "log-sys");
@@ -1133,4 +1356,354 @@ function resetGame() {
         localStorage.removeItem('mage_save_v4');
         location.reload();
     }
+}
+
+// ---- 마법 합성 ----
+
+function openSynthesisScene() {
+    if (player.researchPoints < 25) { addLog("경고", "연구P 부족 (필요: 25)."); return; }
+    const panel = document.getElementById('action-grid');
+    panel.innerHTML = '';
+
+    const recipes = window.SYNTHESIS_RECIPES || [];
+    const learnedAttrs = new Set(player.learnedSpells.map(s => s.attr));
+    const attrC = { "불":"#e74c3c","번개":"#f39c12","바람":"#27ae60","중력":"#8e44ad","물":"#2980b9","독":"#16a085","어둠":"#2c3e50" };
+    const effName = id => Object.values(STATUS_MAP).find(s => s.id === id)?.name || id;
+
+    addLog("마법 합성 연구소", "두 속성 마법을 결합해 새로운 합성 마법을 만듭니다. 비용: 연구P 25.", "log-sys");
+
+    recipes.forEach(recipe => {
+        const canCraft = recipe.attrs.every(a => learnedAttrs.has(a));
+        const alreadyHas = (player.synthesizedSpells || []).some(s => s.id === recipe.id);
+
+        const b = document.createElement('button');
+        b.className = 'excel-btn';
+        const attrSpans = recipe.attrs.map(a => `<span style="color:${attrC[a]||'#8e44ad'}">${a}</span>`).join(' + ');
+        b.innerHTML =
+            `<b style="color:#8e44ad;">${recipe.name}</b> (${attrSpans})<br>` +
+            `<small style="color:#888;">${recipe.desc}</small><br>` +
+            `<small style="color:#555;">위력 ${recipe.power} / MP ${recipe.manaCost} / 상태이상: ${recipe.effects.map(effName).join(', ')}</small>`;
+
+        if (alreadyHas) {
+            b.innerHTML += ' <b style="color:#217346;">[습득 완료]</b>';
+            b.style.opacity = '0.6';
+        } else if (!canCraft) {
+            const missing = recipe.attrs.filter(a => !learnedAttrs.has(a));
+            b.innerHTML += `<br><small style="color:#aaa;">미보유 속성: ${missing.join(', ')}</small>`;
+            b.style.opacity = '0.5';
+        } else {
+            b.style.borderColor = '#8e44ad';
+            b.onclick = () => {
+                player.researchPoints -= 25;
+                if (!player.synthesizedSpells) player.synthesizedSpells = [];
+                player.synthesizedSpells.push({ ...recipe });
+                addLog("합성 성공!", `[${recipe.name}] 창조 완료! 전투 중 합성 마법으로 사용하세요.`, "log-attain");
+                updateUI();
+                openSynthesisScene();
+                return;
+            };
+        }
+        panel.appendChild(b);
+    });
+
+    addBtn(panel, "← 연구실로", () => renderScene("Lab"), "color:#666;border-color:#ccc;margin-top:4px;");
+}
+
+function useSynthesisSpell(recipe) {
+    const enemy = combat.enemy;
+    if (!enemy) return;
+
+    // d20 합성 마법 판정 (DC 8)
+    const synthRoll = d20Check(8);
+    const synthLabel = synthRoll.crit ? '★ 크리티컬!' : synthRoll.fumble ? '★ 대실패!' : synthRoll.success ? '명중' : '빗나감';
+    addLog("합성 마법 판정", `🎲 d20 = [${synthRoll.roll}] — ${synthLabel}`, "log-sys");
+
+    if (synthRoll.fumble) {
+        const backlash = Math.max(1, Math.floor(player.maxHp * 0.08));
+        player.hp = Math.max(1, player.hp - backlash);
+        addLog("합성 역류", `두 속성이 충돌하여 폭발! 자신에게 ${backlash} 피해. (대실패)`, "log-err");
+        updateUI(); renderCombat(); return;
+    }
+    if (!synthRoll.success) {
+        addLog("합성 실패", `${enemy.name}이 혼돈의 마법을 비켜갔습니다!`, "log-sys");
+        enemyAttack(); return;
+    }
+
+    let dmg = Math.floor(recipe.power + getAtkBonus());
+    if (synthRoll.crit) dmg = Math.floor(dmg * 2);
+    let note = '';
+    if (recipe.attrs.some(a  => enemy.weak?.includes(a)))    { dmg = Math.floor(dmg * 1.3); note = ' [부분 약점 1.3x]'; }
+    else if (recipe.attrs.every(a => enemy.resist?.includes(a))) { dmg = Math.floor(dmg * 0.7); note = ' [양방 저항 0.7x]'; }
+
+    const attrStr = recipe.attrs.join('+');
+    const critNote = synthRoll.crit ? ' ★ 크리티컬!' : '';
+    addLog(`합성 마법 — ${recipe.name}`, `[${attrStr}] 결합 발동!${note}${critNote} ${enemy.name}에게 ${dmg} 데미지!`, "log-attain");
+
+    recipe.effects.forEach(effId => {
+        // 합성 상태이상도 d20 판정 (DC 10 고정)
+        const effRoll = d20Check(10);
+        if (effRoll.success) {
+            const turns = effRoll.crit ? 4 : 2;
+            const prev = combat.statusEffects[effId] || 0;
+            combat.statusEffects[effId] = Math.max(prev, turns);
+            const def = Object.values(STATUS_MAP).find(s => s.id === effId);
+            addLog("복합 상태이상", `[${def?.name||effId}] 부여! (${turns}턴) 🎲[${effRoll.roll}]`, "log-attain");
+        }
+    });
+
+    trackQuest('spell', 1);
+    enemyTakeDamage(dmg);
+}
+
+// ---- TRPG 분기 탐험 이벤트 ----
+
+function triggerBranchEvent(stage) {
+    const events = window.BRANCH_EVENTS || [];
+    if (!events.length) return;
+    const event = events[rng(0, events.length - 1)];
+
+    addLog(`[탐험 이벤트] ${event.title}`, event.desc, "log-attain");
+
+    const panel = document.getElementById('action-grid');
+    panel.innerHTML = '';
+
+    event.choices.forEach(choice => {
+        const b = document.createElement('button');
+        b.className = 'excel-btn';
+        b.innerHTML = `${choice.label}${choice.desc ? ` <small style="color:#888;">— ${choice.desc}</small>` : ''}`;
+
+        // 비용 충족 여부 확인
+        let blocked = false;
+        const c = choice.cost || {};
+        if (c.mana    && player.mana    < c.mana)    blocked = true;
+        if (c.hp      && player.hp      <= c.hp + 5)  blocked = true;
+        if (c.stamina && player.stamina < c.stamina) blocked = true;
+        if (c.gold    && player.gold    < c.gold)    blocked = true;
+        if (c.rp      && player.researchPoints < c.rp) blocked = true;
+
+        if (blocked) {
+            b.style.opacity = '0.4';
+            b.onclick = () => addLog("불가", "조건을 충족하지 못합니다.");
+        } else {
+            b.onclick = () => resolveBranchChoice(event, choice, stage);
+        }
+        panel.appendChild(b);
+    });
+}
+
+function resolveBranchChoice(event, choice, stage) {
+    // 카르마 변동
+    if (choice.karma) player.karma = Math.max(-100, Math.min(100, player.karma + choice.karma));
+
+    // 비용 차감
+    const c = choice.cost || {};
+    if (c.mana)    player.mana    = Math.max(0, player.mana    - c.mana);
+    if (c.hp)      player.hp      = Math.max(1, player.hp      - c.hp);
+    if (c.stamina) player.stamina = Math.max(0, player.stamina - c.stamina);
+    if (c.gold)    player.gold    = Math.max(0, player.gold    - c.gold);
+    if (c.rp)      player.researchPoints = Math.max(0, player.researchPoints - c.rp);
+
+    switch (choice.type) {
+        case "pass":
+            addLog("선택", "그냥 지나쳤습니다.", "log-sys");
+            break;
+        case "risky_loot": {
+            const dc = Math.round(21 - (choice.successRate || 0.5) * 20);
+            const { roll, success, crit, fumble } = d20Check(dc);
+            addLog("판정", `🎲 d20 = [${roll}] vs DC ${dc} — ${crit ? '대성공!' : success ? '성공' : fumble ? '대실패!' : '실패'}`, "log-sys");
+            if (success || crit) {
+                const item = getRandomItem(); player.inventory.push(item);
+                const extra = crit ? ` (대성공 — 추가 Gold +50!)` : '';
+                if (crit) player.gold += 50;
+                addLog("성공!", `[${item.rarity}] ${item.name} 발견!${extra}`, "log-attain");
+            } else {
+                const dmg = fumble ? rng(20, 40) : rng(10, 25);
+                player.hp = Math.max(1, player.hp - dmg);
+                addLog(fumble ? "대실패!" : "함정!", `함정에 걸렸습니다. HP -${dmg}${fumble ? ' (대실패 — 추가 피해!)' : ''}`, "log-err");
+            }
+            break; }
+        case "safe_loot":
+            { const item = getRandomItem(); player.inventory.push(item);
+              addLog("발견!", `[${item.rarity}] ${item.name} 획득!`, "log-attain"); }
+            break;
+        case "kill_wounded":
+            player.exp += choice.expGain||0; player.gold += choice.goldGain||0;
+            addLog("처치", `EXP+${choice.expGain||0}, Gold+${choice.goldGain||0}G`, "log-sys");
+            checkLevelUp(); break;
+        case "heal_enemy":
+            player.exp += choice.expGain||0;
+            addLog("치료", `마물이 고마워하는 눈빛을 보냅니다. EXP+${choice.expGain||0}`, "log-attain");
+            checkLevelUp(); break;
+        case "blood_offer":
+            player.exp += choice.expGain||0;
+            addLog("제물", `제단에서 강렬한 에너지가 쏟아집니다. EXP+${choice.expGain||0}`, "log-attain");
+            checkLevelUp(); break;
+        case "gold_offer":
+            if (choice.rpGain)   player.researchPoints += choice.rpGain;
+            if (choice.manaGain) player.mana = Math.min(player.mana + choice.manaGain, player.maxMana);
+            addLog("봉헌", `제단에서 빛이 쏟아집니다. 연구P+${choice.rpGain||0}, MP+${choice.manaGain||0}`, "log-attain");
+            break;
+        case "safe_path":
+            player.exp += choice.expGain||0; player.gold += choice.goldGain||0;
+            addLog("안전 경로", `EXP+${choice.expGain||0}, Gold+${choice.goldGain||0}G`, "log-sys");
+            checkLevelUp(); break;
+        case "risky_path": {
+            const dc = Math.round(21 - (choice.successRate||0.5) * 20);
+            const { roll, success, crit, fumble } = d20Check(dc);
+            addLog("판정", `🎲 d20 = [${roll}] vs DC ${dc} — ${crit ? '대성공!' : success ? '성공' : fumble ? '대실패!' : '실패'}`, "log-sys");
+            if (success || crit) {
+                const expGain = crit ? Math.floor((choice.expGain||0) * 2) : (choice.expGain||0);
+                const goldGain = crit ? Math.floor((choice.goldGain||0) * 2) : (choice.goldGain||0);
+                player.exp += expGain; player.gold += goldGain;
+                addLog("성공!", `어둠 속에서 귀한 것을 발견했습니다. EXP+${expGain}, Gold+${goldGain}G${crit ? ' (대성공 — 2배 보상!)' : ''}`, "log-attain");
+                checkLevelUp();
+            } else {
+                const dmg = fumble ? rng(25, 45) : rng(15, 30);
+                player.hp = Math.max(1, player.hp - dmg);
+                addLog(fumble ? "대실패!" : "기습!", `어둠에서 기습을 당했습니다! HP -${dmg}${fumble ? ' (대실패 — 치명적 피해!)' : ''}`, "log-err");
+            }
+            break; }
+        case "rescue":
+            player.exp += choice.expGain||0;
+            if (choice.rpGain) player.researchPoints += choice.rpGain;
+            addLog("구출", `마법사를 해방했습니다. EXP+${choice.expGain||0}, 연구P+${choice.rpGain||0}`, "log-attain");
+            checkLevelUp(); break;
+        case "drain_mage":
+            if (choice.manaGain) player.mana = Math.min(player.mana + choice.manaGain, player.maxMana);
+            addLog("흡수", `마력을 흡수했습니다. MP+${choice.manaGain||0}`, "log-sys"); break;
+        case "disarm_trap":
+            player.exp += choice.expGain||0;
+            addLog("함정 해제", `완벽하게 해제했습니다. EXP+${choice.expGain||0}`, "log-attain");
+            checkLevelUp(); break;
+        case "barrier_pass":
+            { const d = rng(choice.hpLoss?.[0]||5, choice.hpLoss?.[1]||15);
+              player.hp = Math.max(1, player.hp - d);
+              addLog("통과", `방어막이 일부 막았습니다. HP -${d}`, "log-sys"); }
+            break;
+        case "dash_through": {
+            const dc = Math.round(21 - (choice.successRate||0.5) * 20);
+            const { roll, success, crit, fumble } = d20Check(dc);
+            addLog("판정", `🎲 d20 = [${roll}] vs DC ${dc} — ${crit ? '대성공!' : success ? '성공' : fumble ? '대실패!' : '실패'}`, "log-sys");
+            if (success || crit) {
+                const rpBonus = crit ? 15 : 0;
+                if (crit) player.researchPoints += rpBonus;
+                addLog("회피", `재빠르게 함정을 피했습니다!${crit ? ` (대성공 — 함정 구조를 분석했습니다. 연구P +${rpBonus})` : ''}`, "log-attain");
+            } else {
+                const d = fumble ? Math.floor((choice.hpLoss?.[1]||30) * 1.5) : rng(choice.hpLoss?.[0]||10, choice.hpLoss?.[1]||30);
+                player.hp = Math.max(1, player.hp - d);
+                addLog(fumble ? "대실패!" : "피격!", `함정에 걸렸습니다! HP -${d}${fumble ? ' (대실패 — 완전히 당했습니다!)' : ''}`, "log-err");
+            }
+            break; }
+        case "eat_herb": {
+            const dc = Math.round(21 - (choice.successRate||0.5) * 20);
+            const { roll, success, crit, fumble } = d20Check(dc);
+            addLog("판정", `🎲 d20 = [${roll}] vs DC ${dc} — ${crit ? '대성공!' : success ? '성공' : fumble ? '대실패!' : '실패'}`, "log-sys");
+            if (success || crit) {
+                const hp = crit ? Math.floor((choice.hpGain||0) * 2) : (choice.hpGain||0);
+                const mp = crit ? Math.floor((choice.manaGain||0) * 2) : (choice.manaGain||0);
+                if (hp)   player.hp   = Math.min(player.hp + hp, player.maxHp);
+                if (mp)   player.mana = Math.min(player.mana + mp, player.maxMana);
+                addLog("효험!", `특효약이었습니다! HP+${hp}, MP+${mp}${crit ? ' (대성공 — 2배 효과!)' : ''}`, "log-attain");
+            } else {
+                const d = fumble ? Math.floor((choice.hpFailLoss||15) * 2) : (choice.hpFailLoss||15);
+                player.hp = Math.max(1, player.hp - d);
+                addLog(fumble ? "맹독!" : "독초!", `독초였습니다! HP -${d}${fumble ? ' (대실패 — 맹독!)' : ''}`, "log-err");
+            }
+            break; }
+        case "take_herb":
+            { const cons = window.ITEMS_DB?.consumable || [];
+              const h = { ...(cons[rng(0, cons.length-1)]) }; player.inventory.push(h);
+              addLog("채취", `[${h.name}] 획득`, "log-sys"); }
+            break;
+        case "heal_knight":
+            player.exp += choice.expGain||0;
+            addLog("치료", `'은혜를 잊지 않겠습니다.' EXP+${choice.expGain||0}`, "log-attain");
+            checkLevelUp(); break;
+        case "borrow_weapon":
+            { const wDb = window.ITEMS_DB?.weapon || [];
+              const w = { ...(wDb.find(x => x.id === 'w_iron_rod') || wDb[0]) };
+              player.inventory.push(w);
+              addLog("무기 획득", `[${w.name}] 획득`, "log-attain"); }
+            break;
+    }
+
+    updateUI();
+    if (player.hp <= 0) { showGameOver(null); return; }
+
+    const panel = document.getElementById('action-grid');
+    panel.innerHTML = '';
+    addBtn(panel, "← 계속하기", () => {
+        if (stage) renderDungeonStageActions(stage);
+        else renderScene("Town");
+    });
+}
+
+// ---- 퀘스트 시스템 ----
+
+function generateDailyQuests() {
+    if (player.questsDay === player.day) return;
+    const templates = window.QUEST_TEMPLATES || [];
+    if (!templates.length) return;
+    const shuffled = [...templates].sort(() => Math.random() - 0.5);
+    player.dailyQuests = shuffled.slice(0, 3).map(t => ({ ...t, progress: 0, done: false, claimed: false }));
+    player.questsDay = player.day;
+    player.questProgress = { kill: 0, research: 0, explore: 0, spell: 0, dungeon: 0, earn_gold: 0, npc: 0 };
+    addLog("의뢰판 갱신", `Day ${player.day} — 새 의뢰 3개가 등록되었습니다. 마을 의뢰 보드를 확인하세요.`, "log-sys");
+}
+
+function trackQuest(type, amount) {
+    if (!player.dailyQuests?.length) return;
+    player.questProgress = player.questProgress || {};
+    player.questProgress[type] = (player.questProgress[type] || 0) + amount;
+    player.dailyQuests.forEach(q => {
+        if (q.done || q.type !== type) return;
+        q.progress = Math.min(q.goal, (q.progress || 0) + amount);
+        if (q.progress >= q.goal) {
+            q.done = true;
+            addLog("의뢰 완료!", `[${q.title}] 완료! 마을 의뢰 보드에서 보상을 수령하세요.`, "log-attain");
+        }
+    });
+}
+
+function buildGuildScene(panel) {
+    if (!player.dailyQuests?.length || player.questsDay !== player.day) generateDailyQuests();
+    panel.innerHTML = '';
+
+    const fmt = r => [r.exp ? `EXP+${r.exp}` : '', r.gold ? `Gold+${r.gold}G` : '', r.rp ? `연구P+${r.rp}` : ''].filter(Boolean).join(', ');
+
+    addLog("의뢰 보드", `Day ${player.day}의 의뢰 목록입니다. 완료된 의뢰는 보상을 수령하세요.`, "log-sys");
+
+    (player.dailyQuests || []).forEach(q => {
+        const b = document.createElement('button');
+        b.className = 'excel-btn';
+        const pct = Math.floor((q.progress || 0) / q.goal * 100);
+        const bar = `<div style="width:${pct}%;height:3px;background:#217346;margin-top:3px;"></div>`;
+        const col = q.claimed ? '#aaa' : q.done ? '#217346' : '#555';
+        const tag = q.claimed ? '[수령완료]' : q.done ? '[완료 — 보상 수령하기]' : `[진행 ${q.progress||0}/${q.goal}]`;
+        b.innerHTML =
+            `<span style="color:${col};font-weight:bold;">${tag}</span> ${q.title}<br>` +
+            `<small style="color:#888;">${q.desc}</small><br>` +
+            `<small style="color:#0078d4;">보상: ${fmt(q.reward)}</small>` +
+            (q.claimed ? '' : bar);
+
+        if (q.done && !q.claimed) {
+            b.style.borderColor = '#217346';
+            b.onclick = () => {
+                q.claimed = true;
+                if (q.reward.exp)  { player.exp += q.reward.exp; checkLevelUp(); }
+                if (q.reward.gold) player.gold += q.reward.gold;
+                if (q.reward.rp)   player.researchPoints += q.reward.rp;
+                addLog("보상 수령", `[${q.title}] 보상: ${fmt(q.reward)}`, "log-attain");
+                updateUI();
+                buildGuildScene(panel);
+            };
+        } else {
+            b.style.opacity = q.claimed ? '0.5' : '1';
+            b.style.cursor = q.claimed ? 'default' : 'pointer';
+            if (!q.done) b.onclick = () => {};
+        }
+        panel.appendChild(b);
+    });
+
+    addBtn(panel, "← 마을로", () => renderScene("Town"), "color:#666;border-color:#ccc;margin-top:4px;");
 }

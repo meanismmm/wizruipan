@@ -20,7 +20,8 @@ let player = {
     questsDay: -1,
     questProgress: { kill: 0, research: 0, explore: 0, spell: 0, dungeon: 0, earn_gold: 0, npc: 0 },
     synthesizedSpells: [],
-    karma: 0
+    karma: 0,
+    trait: null
 };
 
 // 속성별 상태이상 정의 (dc = d20 성공 기준값. roll >= dc → 성공)
@@ -33,6 +34,20 @@ const STATUS_MAP = {
     "바람": { id: "bleed",  name: "출혈",  dc: 15, turns: 3, tick: 6 },
     "중력": { id: "crush",  name: "압쇄",  dc: 16, turns: 2, defMult: 0.50 },
 };
+
+// ---- 특성 정의 (레벨 10, 에드먼드에서 3개 중 1개 선택) ----
+const TRAITS_DEF = [
+    { id: "lich",       name: "리치화",     desc: "전투 중 HP 0 시 1회에 한해 HP 50%로 부활한다." },
+    { id: "clone",      name: "분신",       desc: "마법 공격 시 d20 15+ (30%)로 같은 데미지를 한 번 더 입힌다." },
+    { id: "mana_save",  name: "마나 절약",  desc: "모든 마법의 마나 소모가 25% 감소한다." },
+    { id: "resilience", name: "강인함",     desc: "최대 HP +50. (특성 습득 즉시 적용)" },
+    { id: "focus",      name: "마법 집중",  desc: "크리티컬 타격 데미지 배율이 2배→3배로 증가한다." },
+    { id: "bloodlust",  name: "혈기",       desc: "적 처치 시마다 HP 15를 회복한다." },
+    { id: "intuition",  name: "연구 직관",  desc: "마법 연구 난이도(DC)가 3 감소한다." },
+    { id: "vampire",    name: "흡혈",       desc: "마법 공격 데미지의 10%를 HP로 흡수한다." },
+    { id: "mage_eye",   name: "마법사의 눈",desc: "약점 속성 데미지 배율이 1.5배→2.0배로 증가한다." },
+    { id: "fortune",    name: "행운",       desc: "아이템 획득 시 희귀도 d20 판정에 +3 보정이 붙는다." },
+];
 
 // ---- 유틸리티 ----
 
@@ -48,6 +63,46 @@ function d20() { return rng(1, 20); }
 function d20Check(dc) {
     const roll = d20();
     return { roll, success: roll >= dc, crit: roll === 20, fumble: roll === 1 };
+}
+
+// ---- 내구도 헬퍼 ----
+const DURABILITY_MAX = { "일반": 5, "매직": 8, "유니크": 12 };
+const SELL_PRICE     = { "일반": [10, 20], "매직": [40, 70], "유니크": [100, 200] };
+const REPAIR_COST    = { "일반": 20, "매직": 40, "유니크": 100 };
+
+function getMaxDurability(rarity) { return DURABILITY_MAX[rarity] || 0; }
+function getSellPrice(item) {
+    if (item.rarity === "신화") return 0;
+    const pair = SELL_PRICE[item.rarity] || [10, 10];
+    return item.slot === "소비" ? pair[0] : pair[1];
+}
+function ensureDurability(item) {
+    if (!item || item.slot === "소비" || item.rarity === "신화") return;
+    if (item.maxDurability == null) item.maxDurability = getMaxDurability(item.rarity);
+    if (item.durability    == null) item.durability    = item.maxDurability;
+}
+function durabilityLabel(item) {
+    if (!item || item.slot === "소비" || item.rarity === "신화") return '';
+    ensureDurability(item);
+    const d = item.durability, m = item.maxDurability;
+    const col = d <= 1 ? '#d32f2f' : d <= Math.ceil(m / 2) ? '#ff8c00' : '#217346';
+    return ` <span style="color:${col};font-size:10px;">[내구 ${d}/${m}]</span>`;
+}
+
+function applyDurabilityDamage(isCrit, isHeavy) {
+    ["무기", "방어구"].forEach(slot => {
+        const item = player.equipped[slot];
+        if (!item || item.rarity === "신화") return;
+        ensureDurability(item);
+        if (isCrit || (isHeavy && slot === "방어구")) {
+            item.durability = Math.max(0, item.durability - 1);
+            addLog("내구도 감소", `[${item.name}] 내구도 ${item.durability}/${item.maxDurability}${item.durability === 0 ? ' — 파괴 직전!' : ''}`, "log-sys");
+            if (item.durability === 0) {
+                player.equipped[slot] = null;
+                addLog("장비 파괴!", `[${item.name}]이 완전히 파괴되었습니다!`, "log-err");
+            }
+        }
+    });
 }
 
 function addLog(title, text, type = '') {
@@ -96,6 +151,9 @@ function checkLevelUp() {
 
 function getLearnedCountInCircle(attr, circle) {
     return player.learnedSpells.filter(s => s.attr === attr && s.circle === circle).length;
+}
+function getMasteredCountInCircle(attr, circle) {
+    return player.learnedSpells.filter(s => s.attr === attr && s.circle === circle && (s.mastery || 0) >= 100).length;
 }
 
 // ---- 초기화 ----
@@ -191,7 +249,7 @@ function buildTownScene(panel) {
     const guildLabel = pendingReward ? "의뢰 보드 — 수령 대기중!" : "의뢰 보드 (일일 퀘스트)";
     addBtn(panel, guildLabel, () => buildGuildScene(document.getElementById('action-grid')),
         pendingReward ? "border-color:#ff8c00;color:#ff8c00;font-weight:bold;" : "");
-    addBtn(panel, "상점 (아이템 구매)", openShop);
+    addBtn(panel, "상점 (구매 · 수리 · 판매)", openShop);
     addBtn(panel, "소지품 관리 (장착/사용)", openInventoryUse);
     addBtn(panel, "NPC 만나기 (ST-10)", () => {
         if (useStamina(10)) triggerNPCEncounter();
@@ -370,7 +428,6 @@ function clearStage(stage) {
 // ---- 에드먼드 씬 ----
 
 function buildEdmondScene(panel) {
-    const npc = (window.NPCS_DB || []).find(n => n.id === "edmond");
     const dialogues = [
         "마법은 지식이 아닌 의지로 다루는 것이라네.",
         "서두르지 말게. 깊이가 있어야 높이도 생기는 법이야.",
@@ -383,6 +440,32 @@ function buildEdmondScene(panel) {
     ];
     const diag = dialogues[rng(0, dialogues.length - 1)];
     addLog("에드먼드", `'${diag}'`, "log-attain");
+
+    // 레벨 10 달성 + 특성 미습득 → 특성 선택 제안
+    if (player.level >= 10 && !player.trait) {
+        addLog("에드먼드", "'자네, 이제 진정한 마법사의 경지에 다가섰군. 내 마지막 가르침을 전수하지. 세 가지 길 중 하나를 택하게.'", "log-attain");
+        // 10종 중 3개 무작위 제시
+        const pool = [...TRAITS_DEF].sort(() => rng(0,1) - 0.5).slice(0, 3);
+        pool.forEach(trait => {
+            addBtn(panel, `[특성] ${trait.name} — ${trait.desc}`, () => {
+                player.trait = trait.id;
+                if (trait.id === "resilience") {
+                    player.maxHp += 50; player.hp = Math.min(player.hp + 50, player.maxHp);
+                }
+                addLog("특성 습득!", `[${trait.name}] 특성을 습득했습니다! ${trait.desc}`, "log-attain");
+                addLog("에드먼드", "'이것이 자네만의 길이야. 이 힘을 잘 써주게.'", "log-attain");
+                updateUI(); renderScene("Home");
+            }, "border-color:#ff8c00;color:#ff8c00;font-weight:bold;");
+        });
+        addBtn(panel, "← 아직 결정 못하겠습니다", () => renderScene("Home"), "color:#666;border-color:#ccc;");
+        return;
+    }
+
+    // 특성 보유 시 표시
+    if (player.trait) {
+        const t = TRAITS_DEF.find(t => t.id === player.trait);
+        addLog("에드먼드", `'자네의 특성 [${t?.name || player.trait}]은 빛나고 있군. 잘 활용하고 있기를 바라네.'`, "log-attain");
+    }
 
     addBtn(panel, "마나 보충 부탁하기", () => {
         const heal = 30 + player.circle * 5;
@@ -459,8 +542,9 @@ function researchAction() {
         updateUI(); return;
     }
 
-    // DC: 연구P가 쌓일수록 낮아짐 (쉬워짐). DC 18(최고난도) ~ DC 5(최저)
-    const dc = Math.max(5, 18 - Math.floor(player.researchPoints / 15));
+    // DC: 연구P가 쌓일수록 낮아짐. 연구 직관 특성 -3 추가
+    const intuitionBonus = player.trait === 'intuition' ? 3 : 0;
+    const dc = Math.max(2, 18 - Math.floor(player.researchPoints / 15) - intuitionBonus);
     const { roll, success, crit, fumble } = d20Check(dc);
     addLog("연구 판정", `🎲 d20 = [${roll}] vs DC ${dc} — ${crit ? '★ 대성공!' : success ? '성공' : fumble ? '★ 대실패!' : '실패'} (연구P ${player.researchPoints})`, "log-sys");
 
@@ -528,26 +612,41 @@ function craftSpell() {
 function checkCircleAdvance() {
     if (player.circle === 0 || player.circle >= 10) return false;
     const next = player.circle + 1;
-    return player.level >= next * 5 && player.researchPoints >= next * 15 && getLearnedCountInCircle(player.attribute, player.circle) >= 10;
+    // 조건: 레벨·연구P + 주속성 현재 서클에서 3개 이상 100% 숙련
+    return player.level >= next * 5 && player.researchPoints >= next * 15 && getMasteredCountInCircle(player.attribute, player.circle) >= 3;
 }
 
 function circleAdvance() {
     const next = player.circle + 1;
     if (!checkCircleAdvance()) {
-        addLog("승급 실패", `조건: Lv.${next * 5} / 연구P ${next * 15} / 주속성 ${player.circle}서클 마법 10/10`, "log-err");
+        const m = getMasteredCountInCircle(player.attribute, player.circle);
+        addLog("승급 실패", `조건: Lv.${next * 5} / 연구P ${next * 15} / 주속성 ${player.circle}서클 마법 3개 100% 숙련 (현재 ${m}개)`, "log-err");
         return;
     }
+    // 전체 숙련 보너스: 현재 서클 보유 마법 전부 100% 숙련 시
+    const learned  = getLearnedCountInCircle(player.attribute, player.circle);
+    const mastered = getMasteredCountInCircle(player.attribute, player.circle);
+    const fullBonus = learned >= 10 && mastered >= 10;
+
     player.researchPoints -= next * 15;
     player.circle = next;
     player.maxMana += 30; player.mana = player.maxMana;
-    addLog(`${player.circle}서클 승급!`, `${player.circle}서클 마법사가 되었습니다! 최대 마나 +30`, "log-attain");
+
+    let bonusText = '';
+    if (fullBonus) {
+        player.maxHp += 20; player.hp = Math.min(player.hp + 20, player.maxHp);
+        player.maxStamina += 10; player.stamina = Math.min(player.stamina + 10, player.maxStamina);
+        player.researchPoints += next * 10;
+        bonusText = ` ✦ 완전 숙련 보너스 — 최대HP +20, 최대ST +10, 연구P +${next * 10}!`;
+    }
+    addLog(`${player.circle}서클 승급!`, `${player.circle}서클 마법사가 되었습니다! 최대 마나 +30${bonusText}`, "log-attain");
     triggerEdmondEvent(player.circle);
     renderScene("Home");
 }
 
 // ---- 전투 ----
 
-let combat = { enemy: null, playerRevived: false, stage: null, isBoss: false, statusEffects: {} };
+let combat = { enemy: null, playerRevived: false, lichRevived: false, stage: null, isBoss: false, statusEffects: {} };
 
 function startCombat() {
     const db = window.ENEMIES_DB || [];
@@ -611,7 +710,10 @@ function renderCombat() {
         b.innerHTML = `${s.name}${badge} <small>(MP ${s.manaCost} / 위력 ${dispPwr}${masteryBonus > 0 ? ` +${Math.floor(masteryBonus*100)}%숙` : ''})</small>`;
         b.onclick = () => {
             if (player.mana < s.manaCost) { addLog("경고", "마나 부족!"); return; }
-            player.mana -= s.manaCost;
+            // 마나 절약 특성: MP 소모 25% 감소
+            const manaCost = player.trait === 'mana_save' ? Math.max(1, Math.floor(s.manaCost * 0.75)) : s.manaCost;
+            if (player.mana < manaCost) { addLog("경고", "마나 부족!"); return; }
+            player.mana -= manaCost;
             s.mastery = Math.min(100, (s.mastery || 0) + 2);
             const mb = (s.mastery >= 100 ? 0.10 : s.mastery >= 50 ? 0.05 : 0);
             // d20 공격 판정 (DC 8 = 65% 명중)
@@ -629,15 +731,33 @@ function renderCombat() {
                 enemyAttack(); return;
             }
             let baseDmg = Math.floor((s.power + getAtkBonus()) * (1 + mb));
-            if (atkRoll.crit) baseDmg = Math.floor(baseDmg * 2);
+            // 마법 집중 특성: 크리티컬 3배
+            const critMult = player.trait === 'focus' ? 3 : 2;
+            if (atkRoll.crit) baseDmg = Math.floor(baseDmg * critMult);
+            // 마법사의 눈 특성: 약점 2.0배
+            const weakMult = player.trait === 'mage_eye' ? 2.0 : 1.5;
             let dmgMult = 1, note = '';
-            if (enemy.weak?.includes(s.attr))        { dmgMult = 1.5; note = ' [약점 1.5x]'; }
+            if (enemy.weak?.includes(s.attr))        { dmgMult = weakMult; note = ` [약점 ${weakMult}x]`; }
             else if (enemy.resist?.includes(s.attr)) { dmgMult = 0.65; note = ' [저항 0.65x]'; }
-            const dmg = Math.floor(baseDmg * dmgMult);
-            const critNote = atkRoll.crit ? ' ★ 크리티컬!' : '';
+            let dmg = Math.floor(baseDmg * dmgMult);
+            const critNote = atkRoll.crit ? ` ★ 크리티컬(${critMult}배)!` : '';
             addLog("마법 공격", `[${s.name}]${note}${critNote} — ${enemy.name}에게 ${dmg} 데미지!`, "log-attain");
+            // 흡혈 특성: 데미지의 10% HP 흡수
+            if (player.trait === 'vampire') {
+                const drain = Math.max(1, Math.floor(dmg * 0.1));
+                player.hp = Math.min(player.hp + drain, player.maxHp);
+                addLog("흡혈", `흡혈로 HP +${drain} 회복!`, "log-attain");
+            }
             applyStatusEffect(s.attr);
             trackQuest('spell', 1);
+            // 분신 특성: d20 15+ 시 동일 데미지 추가
+            if (player.trait === 'clone' && combat.enemy && combat.enemy.hp > 0) {
+                const cloneRoll = d20Check(15);
+                if (cloneRoll.success) {
+                    addLog("분신!", `🪞 분신이 연속 타격! 추가 ${dmg} 데미지! 🎲[${cloneRoll.roll}]`, "log-attain");
+                    dmg += dmg;
+                }
+            }
             enemyTakeDamage(dmg);
         };
         panel.appendChild(b);
@@ -820,6 +940,16 @@ function enemyAttack() {
     addLog(enemy.name, `"${enemy.atk}"${critNote} — 당신에게 ${dmg} 데미지! (방어 -${myDef})`, "log-err");
     player.hp -= dmg;
 
+    // 내구도 피해: 크리티컬 시 장착 장비 전부 -1, 강타(maxHP 25% 이상) 시 방어구 -1
+    const isHeavy = dmg >= Math.floor(player.maxHp * 0.25);
+    applyDurabilityDamage(atkRoll.crit, isHeavy);
+
+    // 리치화 특성 부활 (HP 50%)
+    if (player.hp <= 0 && player.trait === 'lich' && !combat.lichRevived) {
+        combat.lichRevived = true;
+        player.hp = Math.floor(player.maxHp * 0.5);
+        addLog("리치화 부활!", "죽음의 순간, 마력이 폭발합니다! HP 50%로 부활!", "log-err");
+    }
     // 불사조 로브 부활
     const armor = getEquippedArmor();
     if (player.hp <= 0 && armor?.id === "a_phoenix_robe" && !combat.playerRevived) {
@@ -849,6 +979,11 @@ function combatVictory() {
     trackQuest('kill', 1);
     trackQuest('earn_gold', enemy.gold);
     if (combat.stage) trackQuest('dungeon', 1);
+    // 혈기 특성: 처치 시 HP 흡수
+    if (player.trait === 'bloodlust') {
+        player.hp = Math.min(player.hp + 15, player.maxHp);
+        addLog("혈기", "적을 처치하며 HP +15 흡수!", "log-attain");
+    }
 
     // 드롭 d20 판정 (enemy.drop 0.2~1.0 → DC 17~1)
     const dropDc = Math.max(1, Math.round(21 - (enemy.drop || 0.2) * 20));
@@ -1132,42 +1267,118 @@ function executeNPCAction(action, npc) {
 function getRandomItem() {
     const db = window.ITEMS_DB || {};
     // d20 희귀도 테이블: 1-11 일반(55%), 12-16 매직(25%), 17-19 유니크(15%), 20 신화(5%)
-    const itemRoll = d20();
+    // 행운 특성: +3 보정
+    const fortuneBonus = player.trait === 'fortune' ? 3 : 0;
+    const itemRoll = Math.min(20, d20() + fortuneBonus);
     const rarity = itemRoll === 20 ? "신화" : itemRoll >= 17 ? "유니크" : itemRoll >= 12 ? "매직" : "일반";
     const pool = [...(db.weapon || []), ...(db.armor || []), ...(db.consumable || [])].filter(i => i.rarity === rarity);
     if (!pool.length) return { id: "c_hp_potion", name: "HP 포션", slot: "소비", rarity: "일반", desc: "HP +40", effect: p => { p.hp = Math.min(p.hp + 40, p.maxHp); return "HP +40 회복"; } };
     return { ...(pool[rng(0, pool.length - 1)]) };
 }
 
+const SHOP_CATALOG = {
+    소비: [
+        { item: { id: "c_hp_potion",    name: "HP 포션",       slot: "소비", rarity: "일반", desc: "HP +40", effect: p => { p.hp = Math.min(p.hp + 40, p.maxHp); return "HP +40 회복"; } }, price: 30 },
+        { item: { id: "c_mp_potion",    name: "MP 포션",       slot: "소비", rarity: "일반", desc: "MP +30", effect: p => { p.mana = Math.min(p.mana + 30, p.maxMana); return "MP +30 회복"; } }, price: 25 },
+        { item: { id: "c_research_gem", name: "연구 보석",     slot: "소비", rarity: "매직", desc: "연구P +20", effect: p => { p.researchPoints += 20; return "연구P +20"; } }, price: 80 },
+        { item: { id: "c_exp_scroll",   name: "경험 두루마리", slot: "소비", rarity: "매직", desc: "EXP +200", effect: p => { p.exp += 200; return "EXP +200"; } }, price: 100 },
+        { item: { id: "c_elixir",       name: "엘릭서",        slot: "소비", rarity: "유니크", desc: "HP/MP 완전 회복", effect: p => { p.hp = p.maxHp; p.mana = p.maxMana; return "HP/MP 완전 회복!"; } }, price: 250 }
+    ],
+    장비: [
+        { item: { id: "s_wood_staff",   name: "나무 지팡이",   slot: "무기",   rarity: "일반", atkBonus: 5,  desc: "가장 기본적인 마법사의 지팡이." }, price: 80 },
+        { item: { id: "s_cloth_robe",   name: "낡은 마법 로브",slot: "방어구", rarity: "일반", defBonus: 3,  desc: "방어구라 부르기 민망하지만, 없는 것보단 낫다." }, price: 60 },
+        { item: { id: "s_iron_staff",   name: "철제 지팡이",   slot: "무기",   rarity: "매직", atkBonus: 12, desc: "마법 결정이 박혀 있어 마력 증폭 효과가 있다.", opts: ["마나 소모 -5%"] }, price: 220 },
+        { item: { id: "s_magic_robe",   name: "마법 강화 로브",slot: "방어구", rarity: "매직", defBonus: 8,  desc: "마법 방어막이 짜여진 고급 로브.", opts: ["마법 저항 +10%"] }, price: 190 },
+        { item: { id: "s_elder_staff",  name: "장로의 지팡이", slot: "무기",   rarity: "유니크", atkBonus: 20, desc: "은퇴한 마법사의 유산. 전 속성에 축복이 깃들어 있다.", opts: ["전 속성 +12%"] }, price: 520 },
+        { item: { id: "s_knight_armor", name: "마법 기사 갑주",slot: "방어구", rarity: "유니크", defBonus: 18, desc: "마법과 물리 양쪽을 방어하는 희귀한 갑주.", opts: ["물리 저항 +15%", "마법 저항 +10%"] }, price: 480 }
+    ]
+};
+
 function openShop() {
     const panel = document.getElementById('action-grid');
     panel.innerHTML = '';
     addLog("상점", `상인이 물건을 펼칩니다. 보유 Gold: ${player.gold}G`, "log-sys");
 
-    const shopItems = [
-        { item: { id: "c_hp_potion",    name: "HP 포션",       slot: "소비", rarity: "일반", desc: "HP +40", effect: p => { p.hp = Math.min(p.hp + 40, p.maxHp); return "HP +40 회복"; } }, price: 30 },
-        { item: { id: "c_mp_potion",    name: "MP 포션",       slot: "소비", rarity: "일반", desc: "MP +30", effect: p => { p.mana = Math.min(p.mana + 30, p.maxMana); return "MP +30 회복"; } }, price: 25 },
-        { item: { id: "c_research_gem", name: "연구 보석",      slot: "소비", rarity: "매직", desc: "연구P +20", effect: p => { p.researchPoints += 20; return "연구P +20"; } }, price: 80 },
-        { item: { id: "c_exp_scroll",   name: "경험 두루마리", slot: "소비", rarity: "매직", desc: "EXP +200", effect: p => { p.exp += 200; return "EXP +200"; } }, price: 100 },
-        { item: { id: "c_elixir",       name: "엘릭서",         slot: "소비", rarity: "유니크", desc: "HP/MP 완전 회복", effect: p => { p.hp = p.maxHp; p.mana = p.maxMana; return "HP/MP 완전 회복!"; } }, price: 250 }
-    ];
+    // 탭: 소비 / 장비 / 수리 / 판매
+    addBtn(panel, "소비 아이템", () => openShopTab('소비'), "font-weight:bold;");
+    addBtn(panel, "장비 구매",   () => openShopTab('장비'), "font-weight:bold;");
+    addBtn(panel, "장비 수리",   () => openShopRepair(),    "border-color:#1565c0;color:#1565c0;font-weight:bold;");
+    addBtn(panel, "← 마을로",   () => renderScene("Town"), "color:#666;border-color:#ccc;");
+}
 
-    shopItems.forEach(({ item, price }) => {
+function openShopTab(category) {
+    const panel = document.getElementById('action-grid');
+    panel.innerHTML = '';
+    addLog("상점", `보유 Gold: ${player.gold}G`, "log-sys");
+
+    const catalog = SHOP_CATALOG[category] || [];
+    catalog.forEach(({ item, price }) => {
         const b = document.createElement('button');
         b.className = 'excel-btn';
         b.style.opacity = player.gold >= price ? '1' : '0.5';
-        b.innerHTML = `${item.name} — <b>${price}G</b> (${item.desc})`;
+        const dur = item.slot !== "소비" ? ` [내구 ${getMaxDurability(item.rarity)}/${getMaxDurability(item.rarity)}]` : '';
+        const opts = item.opts?.length ? ` / ${item.opts.join(', ')}` : '';
+        b.innerHTML = `<b>${item.name}</b> — ${price}G <small style="color:#888;">(${item.desc}${opts}${dur})</small>`;
         b.onclick = () => {
-            if (player.gold < price) { addLog("상점", "골드 부족!"); return; }
+            if (player.gold < price) { addLog("상점", "골드가 부족합니다.", "log-err"); return; }
             player.gold -= price;
-            player.inventory.push({ ...item });
-            addLog("구매", `[${item.name}] 구매! (−${price}G)`, "log-attain");
+            const bought = { ...item };
+            if (bought.slot !== "소비") { bought.maxDurability = getMaxDurability(bought.rarity); bought.durability = bought.maxDurability; }
+            player.inventory.push(bought);
+            addLog("구매", `[${item.name}] 구매 완료! −${price}G`, "log-attain");
             updateUI();
         };
         panel.appendChild(b);
     });
 
-    addBtn(panel, "← 마을로", () => renderScene("Town"));
+    addBtn(panel, "← 상점 메인", openShop, "color:#666;border-color:#ccc;margin-top:4px;");
+}
+
+function openShopRepair() {
+    const panel = document.getElementById('action-grid');
+    panel.innerHTML = '';
+    addLog("수리점", `장비를 수리합니다. 보유 Gold: ${player.gold}G`, "log-sys");
+
+    const repairable = [];
+    ["무기", "방어구"].forEach(slot => {
+        const item = player.equipped[slot];
+        if (item && item.rarity !== "신화") { ensureDurability(item); repairable.push({ item, slot, equipped: true }); }
+    });
+    player.inventory.forEach((item, idx) => {
+        if ((item.slot === "무기" || item.slot === "방어구") && item.rarity !== "신화") {
+            ensureDurability(item);
+            repairable.push({ item, idx, equipped: false });
+        }
+    });
+
+    if (!repairable.length) {
+        addLog("수리점", "수리할 장비가 없습니다.", "log-sys");
+    } else {
+        repairable.forEach(({ item, idx, equipped }) => {
+            const missing = item.maxDurability - item.durability;
+            if (missing === 0) {
+                const b = document.createElement('button');
+                b.className = 'excel-btn'; b.style.opacity = '0.5';
+                b.innerHTML = `${item.name}${durabilityLabel(item)} — 이미 완전한 상태`;
+                panel.appendChild(b); return;
+            }
+            const cost = missing * REPAIR_COST[item.rarity];
+            const b = document.createElement('button');
+            b.className = 'excel-btn';
+            b.style.opacity = player.gold >= cost ? '1' : '0.5';
+            b.innerHTML = `${item.name}${durabilityLabel(item)} — 수리비 <b>${cost}G</b> (${missing}내구 회복)`;
+            b.onclick = () => {
+                if (player.gold < cost) { addLog("수리점", "골드가 부족합니다.", "log-err"); return; }
+                player.gold -= cost;
+                item.durability = item.maxDurability;
+                addLog("수리 완료", `[${item.name}] 완전히 수리되었습니다! (−${cost}G)`, "log-attain");
+                updateUI(); openShopRepair();
+            };
+            panel.appendChild(b);
+        });
+    }
+
+    addBtn(panel, "← 상점 메인", openShop, "color:#666;border-color:#ccc;margin-top:4px;");
 }
 
 // ---- 인벤토리: 목록 (마을 버튼에서 접근) ----
@@ -1187,12 +1398,14 @@ function openInventoryUse() {
 
     const styles = window.RARITY_STYLE || {};
     const makeRow = (item, idx, isEquipped) => {
+        if (item.slot !== "소비") ensureDurability(item);
         const b = document.createElement('button');
         b.className = 'excel-btn';
         const col = styles[item.rarity]?.color || "#333";
         const tag = isEquipped ? '<b>[장착중]</b> ' : '';
         b.innerHTML =
             `<span style="color:${col}">${tag}[${item.rarity}]</span> ${item.name}` +
+            durabilityLabel(item) +
             `<span style="float:right;font-size:10px;color:#aaa;">${item.slot}</span>`;
         b.onclick = () => showItemDetail(item, idx, isEquipped, openInventoryUse);
         panel.appendChild(b);
@@ -1216,6 +1429,9 @@ function showItemDetail(item, inventoryIdx, isEquipped, backFn) {
     const styles = window.RARITY_STYLE || {};
     const col = styles[item.rarity]?.color || "#333";
 
+    // 내구도 초기화 (장비류)
+    if (item.slot !== "소비") ensureDurability(item);
+
     // 상세 정보 로그
     let infoHtml =
         `<span style="color:${col};font-weight:bold;">[${item.rarity}] ${item.name}</span><br>` +
@@ -1230,6 +1446,11 @@ function showItemDetail(item, inventoryIdx, isEquipped, backFn) {
     if (item.mythicSkill) {
         const skillNames = { chain_magic: "연쇄 마법", gravity_collapse: "중력 붕괴", soul_drain: "영혼 흡수" };
         infoHtml += `<br><span style="color:#ff8c00;font-weight:bold;">★ 신화 스킬: ${skillNames[item.mythicSkill] || item.mythicSkill}</span>`;
+    }
+    if (item.slot !== "소비" && item.rarity !== "신화") {
+        const d = item.durability, m = item.maxDurability;
+        const dcol = d <= 1 ? '#d32f2f' : d <= Math.ceil(m/2) ? '#ff8c00' : '#217346';
+        infoHtml += `<br><br>내구도: <b style="color:${dcol}">${d}/${m}</b>`;
     }
 
     addLog("아이템 정보", infoHtml, "log-sys");
@@ -1268,6 +1489,22 @@ function showItemDetail(item, inventoryIdx, isEquipped, backFn) {
             checkLevelUp();
             done();
         }, "border-color:#217346;color:#217346;font-weight:bold;");
+    }
+
+    // 판매 버튼 (신화 제외, 전투 중 아닐 때)
+    if (!player.inCombat && item.rarity !== "신화") {
+        const sellG = getSellPrice(item);
+        addBtn(panel, `💰 판매 — ${item.name} (+${sellG}G)`, () => {
+            if (isEquipped) {
+                player.equipped[item.slot] = null;
+            } else {
+                player.inventory.splice(inventoryIdx, 1);
+            }
+            player.gold += sellG;
+            addLog("판매", `[${item.name}] 판매 완료! +${sellG}G`, "log-attain");
+            updateUI();
+            if (backFn) backFn();
+        }, "border-color:#888;color:#666;");
     }
 
     addBtn(panel, "← 뒤로가기", () => { if (backFn) backFn(); }, "color:#555;");
@@ -1357,10 +1594,13 @@ function renderTab() {
         }
     } else if (player.currentTab === 'mastery') {
         const attrs = window.ATTRIBUTES || [];
-        content.innerHTML = attrs.map(a => {
-            const inCircle = getLearnedCountInCircle(a, player.circle);
-            const total = player.learnedSpells.filter(s => s.attr === a).length;
-            return `<div class="item-row"><span style="color:${attrColors[a]||'#333'}">${a} 속성</span><span>${inCircle}/10 (전체 ${total})</span></div>`;
+        const traitInfo = player.trait ? (() => { const t = TRAITS_DEF.find(t => t.id === player.trait); return `<div class="item-row" style="border-color:#ff8c00;"><span style="color:#ff8c00;font-weight:bold;">★ 특성: ${t?.name || player.trait}</span><span style="font-size:10px;color:#888;">${t?.desc || ''}</span></div>`; })() : (player.level >= 10 ? `<div class="item-row"><span style="color:#ff8c00;">★ 에드먼드에게서 특성을 배울 수 있습니다!</span></div>` : '');
+        content.innerHTML = traitInfo + attrs.map(a => {
+            const inCircle  = getLearnedCountInCircle(a, player.circle);
+            const mastered  = getMasteredCountInCircle(a, player.circle);
+            const total     = player.learnedSpells.filter(s => s.attr === a).length;
+            const col       = mastered >= 3 ? '#217346' : '#333';
+            return `<div class="item-row"><span style="color:${attrColors[a]||'#333'}">${a} 속성</span><span style="color:${col}">${mastered}/3 숙련 (보유 ${inCircle}/10)</span></div>`;
         }).join('');
     }
 }
@@ -1387,6 +1627,10 @@ function loadGame() {
     if (!loaded.currentStage) loaded.currentStage = null;
     if (!loaded.townExploreCount) loaded.townExploreCount = 0;
     if (!loaded.dailyQuests) loaded.dailyQuests = [];
+    // 기존 세이브 장비에 내구도 초기화
+    ["무기", "방어구"].forEach(slot => { if (loaded.equipped?.[slot]) ensureDurability(loaded.equipped[slot]); });
+    (loaded.inventory || []).forEach(item => { if (item.slot === "무기" || item.slot === "방어구") ensureDurability(item); });
+    if (loaded.trait === undefined) loaded.trait = null;
     if (loaded.questsDay === undefined) loaded.questsDay = -1;
     if (!loaded.questProgress) loaded.questProgress = { kill: 0, research: 0, explore: 0, spell: 0, dungeon: 0, earn_gold: 0, npc: 0 };
     if (!loaded.synthesizedSpells) loaded.synthesizedSpells = [];

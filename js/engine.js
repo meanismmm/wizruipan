@@ -864,7 +864,7 @@ function openShop() {
     addBtn(panel, "← 마을로", () => renderScene("Town"));
 }
 
-// ---- 인벤토리: 목록 ----
+// ---- 인벤토리: 목록 (마을 버튼에서 접근) ----
 
 function openInventoryUse() {
     const panel = document.getElementById('action-grid');
@@ -872,26 +872,23 @@ function openInventoryUse() {
 
     const w = player.equipped["무기"];
     const a = player.equipped["방어구"];
-    const hasAnything = w || a || player.inventory.length > 0;
 
-    if (!hasAnything) {
+    if (!w && !a && player.inventory.length === 0) {
         addLog("가방", "소지 중인 아이템이 없습니다.", "log-sys");
         addBtn(panel, "← 마을로", () => renderScene("Town"));
         return;
     }
 
     const styles = window.RARITY_STYLE || {};
-
-    const makeRow = (item, inventoryIdx, isEquipped) => {
+    const makeRow = (item, idx, isEquipped) => {
         const b = document.createElement('button');
         b.className = 'excel-btn';
         const col = styles[item.rarity]?.color || "#333";
         const tag = isEquipped ? '<b>[장착중]</b> ' : '';
-        const slotLabel = item.slot === "소비" ? "소비" : item.slot;
         b.innerHTML =
             `<span style="color:${col}">${tag}[${item.rarity}]</span> ${item.name}` +
-            `<span style="float:right;font-size:10px;color:#aaa;">${slotLabel}</span>`;
-        b.onclick = () => showItemDetail(item, inventoryIdx, isEquipped);
+            `<span style="float:right;font-size:10px;color:#aaa;">${item.slot}</span>`;
+        b.onclick = () => showItemDetail(item, idx, isEquipped, openInventoryUse);
         panel.appendChild(b);
     };
 
@@ -901,9 +898,13 @@ function openInventoryUse() {
     addBtn(panel, "← 마을로", () => renderScene("Town"), "margin-top:4px;color:#666;border-color:#ccc;");
 }
 
-// ---- 인벤토리: 상세 보기 + 액션 선택 ----
+// ---- 인벤토리: 상세 보기 + 액션
+// backFn: 뒤로가기 시 호출할 함수
+//   사이드바 탭에서 열면 → () => renderScene(player.location)
+//   마을 목록에서 열면  → openInventoryUse
+// ----
 
-function showItemDetail(item, inventoryIdx, isEquipped) {
+function showItemDetail(item, inventoryIdx, isEquipped, backFn) {
     const panel = document.getElementById('action-grid');
     panel.innerHTML = '';
     const styles = window.RARITY_STYLE || {};
@@ -915,40 +916,33 @@ function showItemDetail(item, inventoryIdx, isEquipped) {
         `<span style="color:#888;font-size:11px;">슬롯: ${item.slot}</span><br><br>` +
         `${item.desc || ''}`;
 
-    // 옵션(opts) 표시
     if (item.opts && item.opts.length > 0) {
-        infoHtml += `<br><br><b>옵션</b><br>` +
-            item.opts.map(o => `&nbsp;• ${o}`).join('<br>');
+        infoHtml += `<br><br><b>옵션</b><br>` + item.opts.map(o => `&nbsp;• ${o}`).join('<br>');
     }
-    // 무기 공격 보너스
-    if (item.atkBonus) infoHtml += `<br><br>공격력 보너스: +${item.atkBonus}`;
-    // 방어구 방어 보너스
-    if (item.defBonus) infoHtml += `<br><br>방어력 보너스: +${item.defBonus}`;
-    // 신화 스킬
+    if (item.atkBonus) infoHtml += `<br><br>공격력 보너스: <b>+${item.atkBonus}</b>`;
+    if (item.defBonus) infoHtml += `<br><br>방어력 보너스: <b>+${item.defBonus}</b>`;
     if (item.mythicSkill) {
         const skillNames = { chain_magic: "연쇄 마법", gravity_collapse: "중력 붕괴", soul_drain: "영혼 흡수" };
         infoHtml += `<br><span style="color:#ff8c00;font-weight:bold;">★ 신화 스킬: ${skillNames[item.mythicSkill] || item.mythicSkill}</span>`;
     }
 
-    addLog(`아이템 정보`, infoHtml, "log-sys");
+    addLog("아이템 정보", infoHtml, "log-sys");
 
     // ── 액션 버튼 ──
+    const done = () => { updateUI(); if (backFn) backFn(); };
 
     if (isEquipped) {
-        // 현재 장착 중인 장비
         addBtn(panel, `✕ 장착 해제 — ${item.name}`, () => {
             player.inventory.push(item);
             player.equipped[item.slot] = null;
-            addLog("장착 해제", `[${item.name}]을 해제했습니다.`, "log-sys");
-            updateUI();
-            openInventoryUse();
+            addLog("장착 해제", `[${item.name}] 해제. 가방으로 이동했습니다.`, "log-sys");
+            done();
         }, "border-color:#d32f2f;color:#d32f2f;");
 
     } else if (item.slot === "무기" || item.slot === "방어구") {
-        // 장착 가능한 장비
         const current = player.equipped[item.slot];
         if (current) {
-            addLog("현재 장착", `[${current.name}]이 장착되어 있습니다. 교체하면 이전 장비는 가방으로 이동합니다.`, "log-sys");
+            addLog("현재 장착", `[${current.name}] 장착 중 → 교체 시 가방으로 이동합니다.`, "log-sys");
         }
         addBtn(panel, `▶ 장착하기 — ${item.name}`, () => {
             const prev = player.equipped[item.slot];
@@ -956,25 +950,21 @@ function showItemDetail(item, inventoryIdx, isEquipped) {
             player.inventory.splice(inventoryIdx, 1);
             if (prev) player.inventory.push(prev);
             addLog("장착", `[${item.name}] 장착 완료!${prev ? ` (이전: ${prev.name} → 가방)` : ''}`, "log-attain");
-            updateUI();
-            openInventoryUse();
+            done();
         }, "border-color:#217346;color:#217346;font-weight:bold;");
 
     } else if (item.slot === "소비") {
-        // 소비 아이템
         addBtn(panel, `▶ 사용하기 — ${item.name}`, () => {
             if (!item.effect) { addLog("오류", "사용할 수 없는 아이템입니다.", "log-err"); return; }
             const result = item.effect(player);
             player.inventory.splice(inventoryIdx, 1);
             addLog("아이템 사용", result || `${item.name} 사용!`, "log-attain");
             checkLevelUp();
-            updateUI();
-            openInventoryUse();
+            done();
         }, "border-color:#217346;color:#217346;font-weight:bold;");
     }
 
-    addBtn(panel, "← 목록으로 돌아가기", openInventoryUse);
-    addBtn(panel, "← 마을로", () => renderScene("Town"), "color:#666;border-color:#ccc;");
+    addBtn(panel, "← 뒤로가기", () => { if (backFn) backFn(); }, "color:#555;");
 }
 
 // ---- 휴식 ----
@@ -1033,13 +1023,29 @@ function renderTab() {
             : '<div style="padding:10px;text-align:center;color:#999;">학습된 마법 없음</div>';
     } else if (player.currentTab === 'inventory') {
         const w = player.equipped["무기"], a = player.equipped["방어구"];
-        let html = '';
-        if (w) html += `<div class="item-row"><span style="color:${styles[w.rarity]?.color||'#333'}">[장착] ${w.name}</span><span>무기</span></div>`;
-        if (a) html += `<div class="item-row"><span style="color:${styles[a.rarity]?.color||'#333'}">[장착] ${a.name}</span><span>방어구</span></div>`;
-        player.inventory.forEach(i =>
-            html += `<div class="item-row"><span style="color:${styles[i.rarity]?.color||'#333'}">${i.name}</span><span>${i.slot}</span></div>`
-        );
-        content.innerHTML = html || '<div style="padding:10px;text-align:center;color:#999;">가방이 비어있습니다.</div>';
+        const backFn = () => renderScene(player.location);
+
+        content.innerHTML = '';
+
+        const makeItemBtn = (item, idx, isEquipped) => {
+            const b = document.createElement('button');
+            b.className = 'item-row item-btn';
+            const col = styles[item.rarity]?.color || '#333';
+            const tag = isEquipped ? '<b>[장착]</b> ' : '';
+            b.innerHTML =
+                `<span style="color:${col}">${tag}${item.name}</span>` +
+                `<span style="font-size:10px;color:#aaa;">${item.slot}</span>`;
+            b.onclick = () => showItemDetail(item, idx, isEquipped, backFn);
+            content.appendChild(b);
+        };
+
+        if (!w && !a && player.inventory.length === 0) {
+            content.innerHTML = '<div style="padding:10px;text-align:center;color:#999;">가방이 비어있습니다.</div>';
+        } else {
+            if (w) makeItemBtn(w, -1, true);
+            if (a) makeItemBtn(a, -1, true);
+            player.inventory.forEach((item, idx) => makeItemBtn(item, idx, false));
+        }
     } else if (player.currentTab === 'mastery') {
         const attrs = window.ATTRIBUTES || [];
         content.innerHTML = attrs.map(a => {

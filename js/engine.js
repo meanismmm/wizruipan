@@ -13,8 +13,9 @@ let player = {
     equipped: { "무기": null, "방어구": null },
     location: "Home", currentTab: 'spells', inCombat: false,
     edmond: { events: [], sacrificed: false },
-    clearedStages: [],   // 클리어한 던전 스테이지 id 목록
-    currentStage: null   // 현재 선택된 던전 스테이지 id
+    clearedStages: [],
+    currentStage: null,
+    townExploreCount: 0  // 오늘 마을 탐색 횟수 (휴식 시 초기화)
 };
 
 // ---- 유틸리티 ----
@@ -124,14 +125,6 @@ function buildHomeScene(panel) {
     const canAdvance = checkCircleAdvance();
     addBtn(panel, "휴식하기 (기력 완전 회복)", restAction);
     addBtn(panel, "연구실 →", () => renderScene("Lab"));
-    addBtn(panel, "마을 탐색 (ST-15)", () => {
-        if (!useStamina(15)) return;
-        const baseExp = 25 + player.circle * 10;
-        player.exp += baseExp;
-        addLog("마을 탐색", `경험치를 얻었습니다. (EXP +${baseExp})`, "log-sys");
-        if (Math.random() < 0.03) triggerFortuneEvent(false);
-        checkLevelUp();
-    });
     addBtn(panel, "흑마법사의 탑 →", () => renderScene("Dungeon"));
     addBtn(panel, "마을 →", () => renderScene("Town"));
     if (!player.edmond.sacrificed) {
@@ -153,12 +146,63 @@ function buildLabScene(panel) {
 // ---- 마을 씬 ----
 
 function buildTownScene(panel) {
+    const limit = 2;
+    const remaining = limit - (player.townExploreCount || 0);
+    const exploreLabel = remaining > 0
+        ? `마을 탐색 (ST-15, 오늘 ${remaining}회 가능)`
+        : `마을 탐색 — 오늘 횟수 소진 (휴식 후 초기화)`;
+
+    const exploreBtn = addBtn(panel, exploreLabel, () => {
+        if (remaining <= 0) { addLog("마을", "오늘은 더 이상 탐색할 기력이 없습니다. 휴식 후 다시 오세요.", "log-sys"); return; }
+        if (!useStamina(15)) return;
+        player.townExploreCount = (player.townExploreCount || 0) + 1;
+        doTownExplore();
+    });
+    if (remaining <= 0) exploreBtn.style.opacity = '0.5';
+
     addBtn(panel, "상점 (아이템 구매)", openShop);
     addBtn(panel, "소지품 관리 (장착/사용)", openInventoryUse);
     addBtn(panel, "NPC 만나기 (ST-10)", () => {
         if (useStamina(10)) triggerNPCEncounter();
     });
     addBtn(panel, "← 오두막으로", () => renderScene("Home"));
+}
+
+function doTownExplore() {
+    // EXP 대신 다양한 랜덤 보상
+    const roll = Math.random();
+    if (roll < 0.30) {
+        // 골드 획득
+        const g = rng(20, 60) + player.circle * 5;
+        player.gold += g;
+        addLog("마을 탐색", `시장을 돌아다니다 거래를 성사시켰습니다. Gold +${g}G`, "log-sys");
+    } else if (roll < 0.55) {
+        // 아이템 발견
+        const item = getRandomItem();
+        player.inventory.push(item);
+        addLog("마을 탐색", `골목 어귀에서 뭔가를 발견했습니다. [${item.rarity}] ${item.name} 획득!`, "log-attain");
+    } else if (roll < 0.75) {
+        // 연구 포인트 (주민에게 정보 수집)
+        const rp = rng(5, 15) + player.circle;
+        player.researchPoints += rp;
+        addLog("마을 탐색", `현지인에게 마법에 관한 이야기를 들었습니다. 연구P +${rp}`, "log-sys");
+    } else if (roll < 0.88) {
+        // 소량 EXP (의미 있는 경험)
+        const exp = rng(15, 35);
+        player.exp += exp;
+        addLog("마을 탐색", `마을에서 뜻밖의 상황에 대처하며 성장했습니다. EXP +${exp}`, "log-sys");
+        checkLevelUp();
+    } else if (roll < 0.97) {
+        // NPC 우연 조우
+        addLog("마을 탐색", "탐색 중 누군가와 마주쳤습니다.", "log-sys");
+        triggerNPCEncounter();
+        return; // NPC 씬이 panel을 덮어쓰므로 여기서 종료
+    } else {
+        // 3% 기연
+        triggerFortuneEvent(false);
+    }
+    updateUI();
+    renderScene("Town");
 }
 
 // ---- 던전 허브 씬 ----
@@ -974,7 +1018,8 @@ function restAction() {
     player.stamina = player.maxStamina;
     player.mana = player.maxMana;
     player.hp = Math.min(player.hp + 30, player.maxHp);
-    addLog("휴식", `Day ${player.day}. 기력을 완전히 회복했습니다. HP+30 회복.`);
+    player.townExploreCount = 0;
+    addLog("휴식", `Day ${player.day}. 기력을 완전히 회복했습니다. HP+30 회복. (마을 탐색 횟수 초기화)`, "log-sys");
     renderScene("Home");
 }
 
@@ -1076,6 +1121,7 @@ function loadGame() {
     );
     if (!loaded.clearedStages) loaded.clearedStages = [];
     if (!loaded.currentStage) loaded.currentStage = null;
+    if (!loaded.townExploreCount) loaded.townExploreCount = 0;
     player = loaded;
     document.getElementById('start-overlay').style.display = 'none';
     addLog("시스템", "저장 데이터를 불러왔습니다.", "log-sys");

@@ -73,6 +73,17 @@ th, td { border: 1px solid var(--excel-border); padding: 4px 8px; font-size: var
 /* 스탯 수치 텍스트 */
 td > .cell-bar-container { margin-bottom: 1px; }
 
-/* 인벤토리 버튼 — 슬롯 라벨 우측 정렬 */
+/* 인벤토리 사이드바 — 클릭 가능한 아이템 버튼 */
+.item-btn {
+    width: 100%; text-align: left; background: white;
+    border: 1px solid var(--excel-border); padding: 5px 8px;
+    font-size: 11px; cursor: pointer; font-family: inherit;
+    display: flex; justify-content: space-between; align-items: center;
+    border-bottom: none;
+}
+.item-btn:last-of-type { border-bottom: 1px solid var(--excel-border); }
+.item-btn:hover { background: var(--excel-selected); border-color: var(--excel-green); }
+
+/* action-grid 버튼 — 슬롯 라벨 우측 정렬 */
 .excel-btn { position: relative; }
 .excel-btn span[style*="float:right"] { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); }

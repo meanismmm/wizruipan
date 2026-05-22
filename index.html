@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>마법사 키우기 v4.0</title>
+    <title>마법사 키우기 v4.5</title>
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 
 <div id="ribbon">
-    <div>마법사 키우기 v4.0 &nbsp;|&nbsp; 파일(F) &nbsp; 홈(H) &nbsp; 시스템(S)</div>
+    <div>마법사 키우기 v4.5 &nbsp;|&nbsp; 파일(F) &nbsp; 홈(H) &nbsp; 시스템(S)</div>
     <div>
         <button onclick="saveGame()" class="ribbon-btn">데이터 저장</button>
         <button onclick="resetGame()" class="ribbon-btn" style="border-color:#ff5a5a; color:#ffdddd;">초기화</button>
@@ -82,13 +82,14 @@
     <div id="intro-box">
         <h2 style="color: var(--excel-green); margin: 0;">마법사 키우기</h2>
         <p style="font-size: 12px; line-height: 1.8; color: #333; margin: 20px 0; text-align: left;">
-            <b style="color: var(--excel-green);">[v4.0 완전 개편]</b><br>
-            ▪ 700종 고유 마법명 완성 (7속성 × 10서클 × 10종)<br>
-            ▪ 에드먼드 스승 서사 — 서클 성장마다 이벤트, 7서클 희생<br>
-            ▪ 전투 시스템 개선 — 적 HP, 물리공격, 도망, 부활<br>
-            ▪ 4단계 아이템 (일반/매직/유니크/신화) + 신화 스킬<br>
-            ▪ EXP → 레벨업, 서클 승급 조건, 기연 랜덤 이벤트<br>
-            ▪ NPC 만남, 상점, 소비 아이템 전투 중 사용 가능
+            <b style="color: var(--excel-green);">[v4.5 업데이트]</b><br>
+            ▪ d20 주사위 시스템 — 모든 판정을 20면체 주사위로 (1=대실패, 20=대성공)<br>
+            ▪ 사냥터 보스 시스템 — 7개 구역 전용 보스, 클리어로 다음 구역 해금<br>
+            ▪ 마법 합성 + TRPG 분기 이벤트 + 속성 약점/저항 + 상태이상<br>
+            ▪ 에드먼드 특성 시스템 — Lv.10 달성 시 10종 중 3개 제시·선택<br>
+            ▪ 마스터리 개편 — 3개 100% 숙련으로 서클 승급, 전체 숙련 시 보너스<br>
+            ▪ 상점 개편 — 장비 구매·수리·판매, 내구도 시스템 (신화 제외)<br>
+            ▪ 일일 퀘스트, 카르마, 기연 이벤트, 아이템 희귀도 4단계
         </p>
         <button class="excel-btn" style="width:100%; text-align:center; font-weight:bold; border-color:var(--excel-green); margin-bottom:8px;" onclick="startGame()">새로운 여정 시작</button>
         <button id="load-btn" class="excel-btn" style="display:none; width:100%; text-align:center;" onclick="loadGame()">기존 기록 불러오기</button>

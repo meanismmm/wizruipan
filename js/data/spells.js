@@ -381,7 +381,12 @@ const ITEMS_DB = {
         // 신화
         { id: "w_edmond_legacy", name: "에드먼드의 유산", slot: "무기", rarity: "신화", atkBonus: 50, desc: "스승의 혼이 깃든 마법 지팡이. 전설의 기술 [연쇄 마법]을 사용할 수 있다.", opts: ["전 속성 +35%", "최대 마나 +50", "스킬: 연쇄 마법"], mythicSkill: "chain_magic" },
         { id: "w_cosmos_rod",    name: "우주의 지팡이", slot: "무기", rarity: "신화", atkBonus: 55, desc: "우주의 법칙이 담긴 지팡이. [중력 붕괴]를 발동한다.", opts: ["전 속성 +40%", "스킬: 중력 붕괴"], mythicSkill: "gravity_collapse" },
-        { id: "w_abyss_scepter", name: "심연의 홀",     slot: "무기", rarity: "신화", atkBonus: 48, desc: "심연의 에너지를 담은 홀. [영혼 흡수]를 사용 가능.", opts: ["어둠 +45%", "스킬: 영혼 흡수"], mythicSkill: "soul_drain" }
+        { id: "w_abyss_scepter", name: "심연의 홀",     slot: "무기", rarity: "신화", atkBonus: 48, desc: "심연의 에너지를 담은 홀. [영혼 흡수]를 사용 가능.", opts: ["어둠 +45%", "스킬: 영혼 흡수"], mythicSkill: "soul_drain" },
+        { id: "w_frost_staff",   name: "서리 지팡이",   slot: "무기", rarity: "매직",  atkBonus: 13, desc: "물 속성 마법 위력 +15%.", opts: ["물 속성 +15%"] },
+        { id: "w_thunder_rod",   name: "번개 봉",        slot: "무기", rarity: "매직",  atkBonus: 14, desc: "번개 속성 마법 위력 +15%.", opts: ["번개 속성 +15%"] },
+        { id: "w_poison_wand",   name: "독 완드",        slot: "무기", rarity: "매직",  atkBonus: 11, desc: "독 속성 마법 위력 +18%, 독 상태이상 DC-2.", opts: ["독 속성 +18%", "독 DC-2"] },
+        { id: "w_obsidian_wand", name: "흑요석 완드",   slot: "무기", rarity: "유니크", atkBonus: 26, desc: "어둠 속성 +25%, 마나 최대치 +15.", opts: ["어둠 +25%", "최대 마나 +15"] },
+        { id: "w_wind_blade",    name: "바람 검",        slot: "무기", rarity: "유니크", atkBonus: 24, desc: "바람 속성 +28%, 크리티컬 확률 +10%.", opts: ["바람 +28%", "크리 확률 +10%"] }
     ],
     armor: [
         // 일반
@@ -394,14 +399,23 @@ const ITEMS_DB = {
         { id: "a_arcane_mantle","name": "신비 망토",     slot: "방어구", rarity: "유니크", defBonus: 22, desc: "피해를 20% 감소, 마나 자동 회복 +5.", opts: ["피해 -20%", "마나 재생 +5"] },
         { id: "a_phoenix_robe", name: "불사조 로브",     slot: "방어구", rarity: "유니크", defBonus: 18, desc: "HP가 0이 되면 한 번 부활한다. (1회/전투)", opts: ["1회 부활"] },
         // 신화
-        { id: "a_cosmos_mantle","name": "우주의 망토",   slot: "방어구", rarity: "신화",  defBonus: 40, desc: "모든 피해 30% 감소, 최대 HP +50.", opts: ["피해 -30%", "최대 HP +50"] }
+        { id: "a_cosmos_mantle","name": "우주의 망토",   slot: "방어구", rarity: "신화",  defBonus: 40, desc: "모든 피해 30% 감소, 최대 HP +50.", opts: ["피해 -30%", "최대 HP +50"] },
+        { id: "a_shadow_cloak",  name: "그림자 망토",   slot: "방어구", rarity: "매직",  defBonus: 9,  desc: "회피 시 피해 10% 감소.", opts: ["회피 피해 -10%"] },
+        { id: "a_barrier_robe",  name: "방벽 로브",     slot: "방어구", rarity: "유니크", defBonus: 20, desc: "최대 HP +20, 피해 -15%.", opts: ["최대 HP +20", "피해 -15%"] },
+        { id: "a_dragonscale",   name: "용 비늘 갑옷",  slot: "방어구", rarity: "유니크", defBonus: 26, desc: "속성 피해 저항 +10%, 방어 +26.", opts: ["속성 저항 +10%"] }
     ],
     consumable: [
         { id: "c_hp_potion",    name: "HP 포션",          slot: "소비", rarity: "일반", desc: "HP를 40 회복한다.", effect: p => { p.hp = Math.min(p.hp + 40, p.maxHp); return "HP +40 회복"; } },
         { id: "c_mp_potion",    name: "MP 포션",          slot: "소비", rarity: "일반", desc: "마나를 30 회복한다.", effect: p => { p.mana = Math.min(p.mana + 30, p.maxMana); return "MP +30 회복"; } },
         { id: "c_elixir",       name: "엘릭서",            slot: "소비", rarity: "유니크", desc: "HP와 MP를 완전 회복한다.", effect: p => { p.hp = p.maxHp; p.mana = p.maxMana; return "HP/MP 완전 회복!"; } },
         { id: "c_research_gem", name: "연구 보석",         slot: "소비", rarity: "매직", desc: "연구 포인트 +20.", effect: p => { p.researchPoints += 20; return "연구 포인트 +20"; } },
-        { id: "c_exp_scroll",   name: "경험 두루마리",     slot: "소비", rarity: "매직", desc: "경험치 +200.", effect: p => { p.exp += 200; return "경험치 +200"; } }
+        { id: "c_exp_scroll",   name: "경험 두루마리",     slot: "소비", rarity: "매직", desc: "경험치 +200.", effect: p => { p.exp += 200; return "경험치 +200"; } },
+        { id: "c_mana_elixir",    name: "마나 영약",      slot: "소비", rarity: "매직",   desc: "마나를 50 회복한다.",                   opts: ["MP +50"],    use: { mana: 50 } },
+        { id: "c_stamina_drink",  name: "체력 강화제",    slot: "소비", rarity: "일반",   desc: "기력(ST)을 30 회복한다.",               opts: ["ST +30"],    use: { stamina: 30 } },
+        { id: "c_full_potion",    name: "만병통치약",     slot: "소비", rarity: "유니크", desc: "HP +50, MP +30을 동시에 회복한다.",      opts: ["HP +50", "MP +30"], use: { hp: 50, mana: 30 } },
+        { id: "c_exp_scroll",     name: "경험 두루마리",  slot: "소비", rarity: "매직",   desc: "경험치를 100 즉시 획득한다.",            opts: ["EXP +100"],  use: { exp: 100 } },
+        { id: "c_antidote",       name: "해독약",         slot: "소비", rarity: "일반",   desc: "독 상태이상을 제거한다.",                opts: ["독 제거"],   use: { cure: "poison" } },
+        { id: "c_elixir_grand",   name: "대회복 엘릭서",  slot: "소비", rarity: "유니크", desc: "HP와 ST를 완전 회복한다.",               opts: ["HP 완전회복", "ST 완전회복"], use: { fullHeal: true } }
     ]
 };
 
@@ -554,6 +568,112 @@ const FORTUNE_EVENTS = [
         name: "시간이 멈춘 공간",
         text: "갑자기 주변의 모든 것이 고요해집니다. 바람도, 소리도. 그 정적 속에서 마법의 본질이 선명하게 보입니다. 잠시 후 세상이 다시 움직입니다. 당신은 무언가 중요한 것을 깨달은 것 같습니다.",
         expGain: 200, researchGain: 30
+    },
+    {
+        id: "fortune_teller", name: "신비 점술사 라힘",
+        minCircle: 0,
+        atmosphere: "수정구가 놓인 탁자 앞에 눈이 부리부리한 노파가 앉아 있습니다. 이상한 향 냄새가 퍼집니다.",
+        greeting: "'어서 오너라. 운명이 너를 이리로 불렀구나.'",
+        dialogues: [
+            "'수정구에 네 미래가 보인다... 어둠과 빛이 뒤섞여 있구나.'",
+            "'가장 강한 마법사도 운명의 손을 완전히 벗어나진 못한다.'",
+            "'네 눈에서 아직 깨닫지 못한 힘이 느껴지는구나.'",
+            "'이 카드를 뽑아보아라. 네 오늘의 운명을 알 수 있다.'",
+            "'죽음의 패를 두려워하지 마라. 타로에서 죽음은 변화를 의미한단다.'"
+        ],
+        actions: [
+            { label: "운세 보기 (Gold-30)", desc: "오늘의 운을 점쳐본다.", type: "reward_exp", expGain: 100, log: "'험난하나 빛이 있구나.' 자신의 여정을 다시 보게 됩니다. EXP +100" },
+            { label: "비법 약초 구매 (Gold-50)", desc: "특별한 약초를 산다.", type: "reward_item", itemId: "c_full_potion", log: "'이 약초는 흔한 게 아니야.' 고급 회복약을 받았습니다." },
+            { label: "자리를 피하다", desc: "", type: "leave" }
+        ]
+    },
+    {
+        id: "fallen_mage", name: "타락한 마법사 칼드론",
+        minCircle: 3,
+        atmosphere: "시커먼 로브를 걸친 마법사가 골목 구석에 웅크려 있습니다. 그의 눈에서 광기가 느껴집니다.",
+        greeting: "'당신도... 힘이 부족해서 고통받고 있지 않나요?'",
+        dialogues: [
+            "'규칙과 윤리는 강자가 만든 족쇄야. 진정한 힘은 경계 너머에 있어.'",
+            "'흑마법의 힘은 두려워할 게 아니야. 도구일 뿐이지.'",
+            "'나는 10서클에 도달하려면 뭐든 희생해야 한다는 걸 깨달았어.'",
+            "'처음엔 나도 당신 같았어요. 하지만 한계에 부딪혔을 때 선택을 해야만 했지.'",
+            "'적어도 내 방법은 빠르긴 해요. 대가가 있을 뿐이지.'"
+        ],
+        actions: [
+            { label: "금지된 지식 엿듣기", desc: "위험하지만 강력한 지식.", type: "reward_research", rpGain: 50, karma: -15, log: "꺼림칙하지만 강렬한 지식을 얻었습니다. 연구P +50, 카르마 -15" },
+            { label: "경고하고 떠난다", desc: "타락의 길을 경계한다.", type: "reward_exp", expGain: 60, karma: 10, log: "경계심이 당신을 성장시켰습니다. EXP +60, 카르마 +10" },
+            { label: "자리를 피하다", desc: "", type: "leave" }
+        ]
+    },
+    {
+        id: "mercenary", name: "전직 용병 그롬",
+        minCircle: 1,
+        atmosphere: "전쟁터의 흔적이 가득한 상처투성이 거한이 술잔을 기울이고 있습니다.",
+        greeting: "'마법사? 흠. 내가 아는 마법사들은 다들 쓸모가 있었지. 넌 어떤가.'",
+        dialogues: [
+            "'30년 싸웠어. 마법사는 뒤에 있고, 우리는 앞에 있었지. 그래도 난 살아남았어.'",
+            "'힘이 전부야. 명예고 뭐고, 살아야 의미가 있는 거거든.'",
+            "'마법사들은 이론은 잘 알아도 실전 감각이 없더라고. 그 점만 고치면 최강이겠지.'",
+            "'살아남는 게 재능이야. 자네도 그 재능 있어 보이더만.'"
+        ],
+        actions: [
+            { label: "전투 훈련 (ST-20)", desc: "실전 전투 기술을 배운다.", type: "reward_stat", statKey: "maxHp", amount: 15, log: "혹독한 훈련 끝에 체력이 강해졌습니다. 최대 HP +15" },
+            { label: "모험담 듣기", desc: "경험담에서 지혜를 얻는다.", type: "reward_exp", expGain: 80, log: "용병의 30년 경험이 담긴 이야기를 들었습니다. EXP +80" },
+            { label: "전리품 구매 (Gold-40)", desc: "오래된 전리품을 구매한다.", type: "reward_item", itemId: "random", log: "'오래됐지만 쓸만해.' 거한이 낡은 장비를 건넵니다." },
+            { label: "자리를 피하다", desc: "", type: "leave" }
+        ]
+    },
+    {
+        id: "apprentice", name: "마법 견습생 미아",
+        minCircle: 0,
+        atmosphere: "마법 학교 교복을 입은 소녀가 두꺼운 책을 가슴에 안고 서 있습니다. 눈이 초롱초롱합니다.",
+        greeting: "'저기, 혹시 마법사 선배님인가요? 마력이 느껴져서요!'",
+        dialogues: [
+            "'저도 언젠가 선배님처럼 강해지고 싶어요! 어떻게 하셨어요?'",
+            "'오늘 실험에서 또 폭발이 났어요... 교수님이 무서운 눈으로 보셨는데.'",
+            "'선배님이 쓰시는 마법... 책에서 본 것보다 훨씬 강해 보여요!'",
+            "'선배님, 혹시 마법 공부 팁 같은 거 있으신가요? 연구P가 너무 안 올라요.'"
+        ],
+        actions: [
+            { label: "가르쳐주기 (MP-10)", desc: "견습생에게 마법을 가르친다.", type: "teach_apprentice", cost: { mana: 10 }, expGain: 60, karma: 15, log: "가르치며 스스로도 배웠습니다. EXP +60, 카르마 +15" },
+            { label: "응원해주기", desc: "격려의 말을 건넨다.", type: "reward_stat", statKey: "researchPoints", amount: 10, log: "'선배님 말씀 명심할게요!' 연구P +10" },
+            { label: "자리를 피하다", desc: "", type: "leave" }
+        ]
+    },
+    {
+        id: "blacksmith", name: "마력 대장장이 하인즈",
+        minCircle: 1,
+        atmosphere: "활활 타오르는 용광로 앞에 근육질의 남자가 마법 문양이 새겨진 금속을 두드리고 있습니다.",
+        greeting: "'마법사인가! 마침 마법 강화 무기를 만드는 중이었는데. 보여줄까?'",
+        dialogues: [
+            "'마법과 금속의 결합이야말로 최강의 무기를 만들지.'",
+            "'이 해머로 10만 번은 두드렸을 거야. 장인의 기술도 마법과 다를 게 없어.'",
+            "'용의 비늘을 소재로 무기를 만들어본 적이 있어. 아직도 날이 살아있지.'",
+            "'흑마법에 오염된 금속은 특이한 성질을 가져. 연구해볼 가치가 있는데.'"
+        ],
+        actions: [
+            { label: "장비 강화 조언", desc: "장비 관리법을 배운다.", type: "reward_stat", statKey: "researchPoints", amount: 15, log: "금속과 마법의 조화를 배웠습니다. 연구P +15" },
+            { label: "특제 강화액 구매 (Gold-35)", desc: "대장장이 특제 강화액.", type: "reward_item", itemId: "c_stamina_drink", log: "'이거 마시면 힘이 펄펄 나지.' 특제 음료를 받았습니다." },
+            { label: "자리를 피하다", desc: "", type: "leave" }
+        ]
+    },
+    {
+        id: "shadow_dealer", name: "그림자 상인",
+        minCircle: 3,
+        atmosphere: "후드로 얼굴을 가린 인물이 어두운 골목에 서 있습니다. 인기척이 없었는데 갑자기 나타났습니다.",
+        greeting: "'마법사. 당신이 원하는 것이 있다면... 우리는 항상 거래할 수 있소.'",
+        dialogues: [
+            "'이름은 묻지 마시오. 출처도 묻지 마시오. 거래만 하면 됩니다.'",
+            "'돈이 없다면 다른 것으로 대신할 수 있소. 당신의 마력이나... 기억 같은 것.'",
+            "'세상엔 공식적인 거래와 그렇지 않은 거래가 있소. 나는 후자를 담당하오.'",
+            "'당신의 카르마가 보이는구나. 어두울수록 우리와 거래하기 수월하지요.'"
+        ],
+        actions: [
+            { label: "비밀 거래 (Gold-80)", desc: "출처 불명의 물건을 산다.", type: "reward_item", itemId: "unique_pool", log: "'질문 없기로 하죠.' 이상한 물건을 건네받았습니다." },
+            { label: "정보 구매 (Gold-60)", desc: "흑시장 정보를 입수한다.", type: "reward_research", rpGain: 45, log: "비밀 연구 정보를 얻었습니다. 연구P +45" },
+            { label: "거래를 거부하다", desc: "의심스럽다.", type: "reward_exp", expGain: 30, karma: 5, log: "유혹을 뿌리쳤습니다. EXP +30, 카르마 +5" },
+            { label: "자리를 피하다", desc: "", type: "leave" }
+        ]
     }
 ];
 
@@ -797,7 +917,79 @@ const BRANCH_EVENTS = [
             { label: "지나친다",           type: "pass",            karma: -5 }
         ]
     },
-];
+,
+    {
+        id: "be_gold_chest", title: "황금 상자",
+        desc: "반짝이는 황금 상자가 홀로 방치되어 있습니다. 자물쇠가 걸려있지 않습니다. 너무 쉬운 것 같아 의심스럽습니다.",
+        choices: [
+            { label: "바로 연다",                   type: "risky_loot",    desc: "함정일 수 있다.",      successRate: 0.65 },
+            { label: "마법 탐지 (MP-10)",            type: "safe_loot",     desc: "안전하게 확인한다.",   cost: { mana: 10 } },
+            { label: "그냥 지나친다",               type: "pass" }
+        ]
+    },
+    {
+        id: "be_magic_storm", title: "마력 폭풍",
+        desc: "갑자기 주변 마력이 폭발적으로 증가합니다. 마법 에너지가 어지럽게 소용돌이칩니다.",
+        choices: [
+            { label: "마력을 흡수한다 (위험)",      type: "absorb_storm",  desc: "강하지만 위험하다.",   successRate: 0.55, manaGain: 60, hpLoss: [15, 30] },
+            { label: "방어막을 친다 (MP-20)",       type: "barrier_storm", desc: "안전하게 막는다.",     cost: { mana: 20 }, expGain: 80 },
+            { label: "피한다",                      type: "pass" }
+        ]
+    },
+    {
+        id: "be_mirror_room", title: "거울 방",
+        desc: "끝없이 이어진 거울들이 방을 가득 채웁니다. 모든 거울에서 당신이 비치는데... 하나만 움직임이 다릅니다.",
+        choices: [
+            { label: "다른 거울에 손을 댄다",       type: "mirror_touch",  desc: "무슨 일이 일어날지 모른다.", successRate: 0.6, expGain: 150, hpLoss: [0, 25] },
+            { label: "거울을 깨부순다 (ST-15)",     type: "break_mirror",  desc: "파괴하면 뭔가 나올지도.",    cost: { stamina: 15 }, goldGain: 60 },
+            { label: "무시하고 지나간다",           type: "pass" }
+        ]
+    },
+    {
+        id: "be_magic_book", title: "낡은 마법서",
+        desc: "먼지 쌓인 서가에서 낡은 마법서가 발견됩니다. 아직 읽을 수 있을 것 같습니다.",
+        choices: [
+            { label: "열심히 읽는다 (ST-10)",       type: "read_book",     desc: "지식을 흡수한다.",     cost: { stamina: 10 }, rpGain: 40 },
+            { label: "빠르게 훑어본다",             type: "skim_book",     desc: "요점만 파악한다.",     rpGain: 15 },
+            { label: "가방에 챙긴다",              type: "take_book",     desc: "나중에 읽는다.",       expGain: 20 }
+        ]
+    },
+    {
+        id: "be_poison_mist", title: "독안개",
+        desc: "초록빛 안개가 복도를 가득 채우고 있습니다. 코에서 날카로운 냄새가 납니다.",
+        choices: [
+            { label: "숨을 참고 달린다",            type: "dash_poison",   desc: "최대한 빠르게 통과한다.", successRate: 0.6, hpLoss: [5, 20] },
+            { label: "해독 마법 (MP-20)",            type: "purify_mist",   desc: "마법으로 정화한다.",      cost: { mana: 20 }, expGain: 70 },
+            { label: "돌아가는 길을 찾는다",        type: "pass",          desc: "우회한다." }
+        ]
+    },
+    {
+        id: "be_wounded_soldier", title: "쓰러진 병사",
+        desc: "왕국 병사가 피를 흘리며 바닥에 쓰러져 있습니다. 아직 눈을 떠 당신을 바라봅니다.",
+        choices: [
+            { label: "치료해준다 (HP-15)",          type: "heal_soldier",  desc: "응급처치를 해준다.",    cost: { hp: 15 }, expGain: 90, goldGain: 40, karma: 20 },
+            { label: "위로의 말을 건넨다",          type: "comfort",       desc: "곁에 있어준다.",        karma: 10, expGain: 40 },
+            { label: "지나친다",                    type: "pass",                                         karma: -10 }
+        ]
+    },
+    {
+        id: "be_sealed_door", title: "봉인된 문",
+        desc: "거대한 철문에 마력 봉인이 걸려있습니다. 문 너머에서 강렬한 에너지가 느껴집니다.",
+        choices: [
+            { label: "봉인을 해제한다 (연구P-20)",  type: "break_seal",    desc: "연구 지식으로 해제한다.", cost: { rp: 20 }, expGain: 200, successRate: 0.65 },
+            { label: "마력을 쏟아붓는다 (MP-30)",   type: "force_door",    desc: "힘으로 연다.",            cost: { mana: 30 }, expGain: 120, hpLoss: [0, 20] },
+            { label: "그대로 둔다",                 type: "pass",          desc: "봉인에는 이유가 있을 것이다." }
+        ]
+    },
+    {
+        id: "be_secret_stair", title: "비밀 계단",
+        desc: "선반 뒤에 숨겨진 계단이 발견됩니다. 아래에서 희미한 빛이 새어나옵니다.",
+        choices: [
+            { label: "내려간다",                    type: "explore_stair", desc: "탐험을 계속한다.",      successRate: 0.7, expGain: 100, goldGain: 80 },
+            { label: "큰소리로 외쳐본다",           type: "call_down",     desc: "아무도 없나 확인한다.", expGain: 30 },
+            { label: "올라가 돌아온다",             type: "pass" }
+        ]
+    }];
 
 // 일일 의뢰 템플릿
 const QUEST_TEMPLATES = [
@@ -828,3 +1020,5 @@ window.DUNGEON_STAGES = DUNGEON_STAGES;
 window.QUEST_TEMPLATES = QUEST_TEMPLATES;
 window.SYNTHESIS_RECIPES = SYNTHESIS_RECIPES;
 window.BRANCH_EVENTS = BRANCH_EVENTS;
+
+

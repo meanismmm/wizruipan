@@ -2,66 +2,80 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>마법사 키우기 v4.5</title>
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 
+<!-- ① 헤더 -->
 <div id="ribbon">
-    <div>마법사 키우기 v4.5 &nbsp;|&nbsp; 파일(F) &nbsp; 홈(H) &nbsp; 시스템(S)</div>
-    <div>
-        <button onclick="saveGame()" class="ribbon-btn">데이터 저장</button>
-        <button onclick="resetGame()" class="ribbon-btn" style="border-color:#ff5a5a; color:#ffdddd;">초기화</button>
+    <div class="ribbon-brand">
+        <span class="brand-name">마법사 키우기</span>
+        <span class="brand-ver">v4.5</span>
+    </div>
+    <div class="ribbon-controls">
+        <button onclick="saveGame()" class="ribbon-btn">저장</button>
+        <button onclick="resetGame()" class="ribbon-btn ribbon-btn--danger">초기화</button>
     </div>
 </div>
 
-<div id="workspace">
-    <div id="sidebar-data">
-        <div id="fixed-profile">
-            <table>
-                <tr><th colspan="2" class="th-green">Mage_Status</th></tr>
-                <tr><td>무기 / 방어구</td><td id="ui-gear" style="text-align:right; font-size:10px;">없음 / 없음</td></tr>
-                <tr><td>서클 / 레벨</td><td style="text-align:right; font-weight:bold;"><span id="ui-circle">0</span>C / <span id="ui-level">1</span>Lv</td></tr>
-                <tr><td>EXP / 골드</td><td id="ui-exp-gold" style="text-align:right; font-size:10px;">0/100 EXP / 200G</td></tr>
-                <tr>
-                    <td>체력 (ST)</td>
-                    <td>
-                        <div class="cell-bar-container">
-                            <div id="st-fill" class="cell-bar-fill" style="width:100%; background:#4caf50;"></div>
-                        </div>
-                        <div id="st-val" style="font-size:9px; text-align:right; color:#666;">100/100</div>
-                    </td>
-                </tr>
-                <tr>
-                    <td>생명력 (HP)</td>
-                    <td>
-                        <div class="cell-bar-container">
-                            <div id="hp-fill" class="cell-bar-fill" style="width:100%; background:#ff5a5a;"></div>
-                        </div>
-                        <div id="hp-val" style="font-size:9px; text-align:right; color:#666;">60/60</div>
-                    </td>
-                </tr>
-                <tr>
-                    <td>마나 (MP)</td>
-                    <td>
-                        <div class="cell-bar-container">
-                            <div id="mana-fill" class="cell-bar-fill" style="width:100%; background:#5a5aff;"></div>
-                        </div>
-                        <div id="mana-val" style="font-size:9px; text-align:right; color:#666;">30/30</div>
-                    </td>
-                </tr>
-                <tr>
-                    <td>경험치</td>
-                    <td>
-                        <div class="cell-bar-container">
-                            <div id="exp-fill" class="cell-bar-fill" style="width:0%; background:#a855f7;"></div>
-                        </div>
-                    </td>
-                </tr>
-                <tr><td>연구P / 생존일</td><td id="ui-res-day" style="text-align:right; font-size:10px;">10P / 1 Day</td></tr>
-            </table>
+<!-- ② 항상 표시: 미니 스탯바 -->
+<div id="mini-status">
+    <div class="mini-left">
+        <div class="mini-circle"><span id="ui-circle">0</span>C</div>
+        <div class="mini-level">Lv.<span id="ui-level">1</span></div>
+        <div class="mini-day" id="ui-res-day">10P / 1 Day</div>
+    </div>
+    <div class="mini-bars">
+        <div class="bar-row">
+            <span class="bar-label">ST</span>
+            <div class="mini-bar-track"><div id="st-fill" class="mini-bar-fill" style="width:100%;background:#4caf50;"></div></div>
+            <span id="st-val" class="bar-val">100/100</span>
         </div>
+        <div class="bar-row">
+            <span class="bar-label">HP</span>
+            <div class="mini-bar-track"><div id="hp-fill" class="mini-bar-fill" style="width:100%;background:#ff5a5a;"></div></div>
+            <span id="hp-val" class="bar-val">60/60</span>
+        </div>
+        <div class="bar-row">
+            <span class="bar-label">MP</span>
+            <div class="mini-bar-track"><div id="mana-fill" class="mini-bar-fill" style="width:100%;background:#5a5aff;"></div></div>
+            <span id="mana-val" class="bar-val">30/30</span>
+        </div>
+        <div class="bar-row">
+            <span class="bar-label">EXP</span>
+            <div class="mini-bar-track"><div id="exp-fill" class="mini-bar-fill" style="width:0%;background:#a855f7;"></div></div>
+            <span class="bar-val" style="opacity:.5">—</span>
+        </div>
+    </div>
+</div>
+
+<!-- ③ 패널 영역 -->
+<div id="workspace">
+
+    <!-- 로그 패널 (기본) -->
+    <div id="panel-log" class="panel panel--active">
+        <div id="log-area"></div>
+    </div>
+
+    <!-- 상태 패널 -->
+    <div id="panel-status" class="panel">
+        <div id="sidebar-data">
+            <div id="fixed-profile">
+                <table>
+                    <tr><th colspan="2" class="th-green">Mage_Status</th></tr>
+                    <tr><td>무기 / 방어구</td><td id="ui-gear" class="val-right">없음 / 없음</td></tr>
+                    <tr><td>서클 / 레벨</td><td id="ui-exp-gold" class="val-right">0/100 EXP / 200G</td></tr>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- 스킬 패널 -->
+    <div id="panel-skills" class="panel panel--flex">
         <div id="scrollable-tabs">
             <div class="tab-btn-group">
                 <button id="btn-spells"    class="tab-btn active" onclick="switchTab('spells')">마법</button>
@@ -72,43 +86,78 @@
         </div>
     </div>
 
-    <div id="main-view">
-        <div id="log-area"></div>
-        <div id="action-grid"></div>
-    </div>
 </div>
 
+<!-- ④ 액션 그리드 (고정) -->
+<div id="action-grid"></div>
+
+<!-- ⑤ 하단 내비게이션 -->
+<nav id="bottom-nav">
+    <button class="nav-btn nav-btn--active" onclick="mobilePanel('log',this)">
+        <span class="nav-icon">📜</span>
+        <span class="nav-label">로그</span>
+    </button>
+    <button class="nav-btn" onclick="mobilePanel('status',this)">
+        <span class="nav-icon">⚔️</span>
+        <span class="nav-label">상태</span>
+    </button>
+    <button class="nav-btn" onclick="mobilePanel('skills',this);switchTab('spells')">
+        <span class="nav-icon">✨</span>
+        <span class="nav-label">마법</span>
+    </button>
+    <button class="nav-btn" onclick="mobilePanel('skills',this);switchTab('inventory')">
+        <span class="nav-icon">🎒</span>
+        <span class="nav-label">가방</span>
+    </button>
+    <button class="nav-btn" onclick="mobilePanel('skills',this);switchTab('mastery')">
+        <span class="nav-icon">📚</span>
+        <span class="nav-label">숙련</span>
+    </button>
+</nav>
+
+<!-- 시작 오버레이 -->
 <div id="start-overlay">
     <div id="intro-box">
-        <h2 style="color: var(--excel-green); margin: 0;">마법사 키우기</h2>
-        <p style="font-size: 12px; line-height: 1.8; color: #333; margin: 20px 0; text-align: left;">
-            <b style="color: var(--excel-green);">[v4.5 업데이트]</b><br>
-            ▪ d20 주사위 시스템 — 모든 판정을 20면체 주사위로 (1=대실패, 20=대성공)<br>
-            ▪ 사냥터 보스 시스템 — 7개 구역 전용 보스, 클리어로 다음 구역 해금<br>
-            ▪ 마법 합성 + TRPG 분기 이벤트 + 속성 약점/저항 + 상태이상<br>
-            ▪ 에드먼드 특성 시스템 — Lv.10 달성 시 10종 중 3개 제시·선택<br>
-            ▪ 마스터리 개편 — 3개 100% 숙련으로 서클 승급, 전체 숙련 시 보너스<br>
-            ▪ 상점 개편 — 장비 구매·수리·판매, 내구도 시스템 (신화 제외)<br>
-            ▪ 일일 퀘스트, 카르마, 기연 이벤트, 아이템 희귀도 4단계
-        </p>
-        <button class="excel-btn" style="width:100%; text-align:center; font-weight:bold; border-color:var(--excel-green); margin-bottom:8px;" onclick="startGame()">새로운 여정 시작</button>
-        <button id="load-btn" class="excel-btn" style="display:none; width:100%; text-align:center;" onclick="loadGame()">기존 기록 불러오기</button>
+        <h2>마법사 키우기</h2>
+        <span class="version-badge">v4.5 업데이트</span>
+        <ul class="patch-notes">
+            <li><b>d20 주사위</b> — 모든 판정을 20면체로 (1=대실패, 20=대성공)</li>
+            <li><b>사냥터 보스</b> — 7개 구역 전용 보스, 클리어로 해금</li>
+            <li><b>마법 합성</b> + TRPG 분기 이벤트 + 속성 약점/저항</li>
+            <li><b>에드먼드 특성</b> — Lv.10 시 10종 중 3개 선택</li>
+            <li><b>마스터리 개편</b> — 3개 100% 숙련으로 서클 승급</li>
+            <li><b>상점 개편</b> — 장비 구매·수리·판매, 내구도 시스템</li>
+        </ul>
+        <button class="start-btn" onclick="startGame()">새로운 여정 시작</button>
+        <button id="load-btn" class="load-btn" style="display:none;" onclick="loadGame()">기존 기록 불러오기</button>
     </div>
 </div>
 
 <!-- 게임 오버 오버레이 -->
-<div id="gameover-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.88); z-index:2000; flex-direction:column; align-items:center; justify-content:center;">
-    <div style="max-width:480px; text-align:center; padding:40px; border:1px solid #555; background:#111; border-top:4px solid #d32f2f;">
-        <div style="font-size:32px; color:#d32f2f; font-weight:bold; margin-bottom:16px;">— 사망 —</div>
-        <p id="go-death-msg" style="color:#ccc; font-size:14px; line-height:1.8; margin-bottom:12px;"></p>
-        <p id="go-epitaph"   style="color:#888; font-size:12px; font-style:italic; margin-bottom:20px;"></p>
-        <p id="go-stats"     style="color:#555; font-size:11px; border-top:1px solid #333; padding-top:12px; margin-bottom:24px;"></p>
-        <button onclick="restartGame()" style="background:#d32f2f; border:none; color:white; padding:12px 32px; font-size:14px; cursor:pointer; font-family:inherit;">처음부터 다시 시작</button>
+<div id="gameover-overlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.9);z-index:2000;flex-direction:column;align-items:center;justify-content:center;">
+    <div class="gameover-box">
+        <div class="gameover-title">— 사망 —</div>
+        <p id="go-death-msg" class="gameover-msg"></p>
+        <p id="go-epitaph"   class="gameover-epitaph"></p>
+        <p id="go-stats"     class="gameover-stats"></p>
+        <button onclick="restartGame()" class="gameover-btn">처음부터 다시 시작</button>
     </div>
 </div>
 
+<script>
+function mobilePanel(id, btn) {
+    document.querySelectorAll('.panel').forEach(function(p){
+        p.classList.remove('panel--active');
+    });
+    var target = document.getElementById('panel-' + id);
+    if (target) target.classList.add('panel--active');
+    document.querySelectorAll('.nav-btn').forEach(function(b){
+        b.classList.remove('nav-btn--active');
+    });
+    if (btn) btn.classList.add('nav-btn--active');
+}
+</script>
 <script src="js/data/spells.js"></script>
 <script src="js/engine.js"></script>
-
 </body>
 </html>

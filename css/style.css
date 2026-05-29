@@ -95,11 +95,14 @@ html, body {
 .panel--flex.panel--active { display: flex; }
 
 /* ─── LOG PANEL ─── */
+#panel-log { overflow: hidden; }
 #log-area {
+    height: 100%;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
     padding: 16px;
     background-image: linear-gradient(rgba(200,200,200,.25) 1px, transparent 1px);
     background-size: 100% 26px;
-    min-height: 100%;
 }
 .log-entry {
     margin-bottom: 12px; padding: 11px 13px;
